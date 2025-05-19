@@ -1,2 +1,3 @@
-# api-tools
-Toolkit for API in Rust
+# API Tools
+
+> Toolkit for API in Rust
