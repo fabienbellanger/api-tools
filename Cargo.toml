@@ -14,9 +14,32 @@ rust-version = "1.85"
 
 [features]
 axum = []
-default = ["axum"]
+default = []
 full = [
     "axum",
 ]
 
 [dependencies]
+
+# Errors
+thiserror = "2.0.12"
+
+# API Server
+axum = "0.8.1"
+http-auth-basic = "0.3.5"
+hyper = "1.6.0"
+tower = { version = "0.5.2", features = ["timeout", "util"] }
+
+# Serde
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+
+async-trait = "0.1.88"
+bytes = "1.10.1"
+futures = "0.3.31"
+log = "0.4.27"
+mime = "0.3.17"
+tokio = { version = "1.44.1", features = ["full"] }
+
+[dev-dependencies]
+env_logger = "0.11.8"
