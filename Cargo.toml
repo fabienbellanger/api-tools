@@ -1,6 +1,6 @@
 [package]
 name = "api-tools"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 authors = ["Fabien Bellanger <valentil@gmail.com>"]
 description = "An API tools library for Rust"
@@ -54,3 +54,5 @@ uuid = { version = "1.16.0", features = ["v4", "serde"] }
 [dev-dependencies]
 base64 = "0.22.1"
 
+[package.metadata.docs.rs]
+features = ["axum", "full"]
