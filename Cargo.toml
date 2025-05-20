@@ -14,7 +14,7 @@ rust-version = "1.85.1"
 
 [features]
 axum = []
-default = ["axum"]
+default = []
 full = [
     "axum",
 ]
@@ -55,4 +55,4 @@ uuid = { version = "1.16.0", features = ["v4", "serde"] }
 base64 = "0.22.1"
 
 [package.metadata.docs.rs]
-features = ["axum", "full"]
+all-features = true
