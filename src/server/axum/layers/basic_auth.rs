@@ -102,3 +102,59 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode, header},
+        response::Response,
+    };
+    use base64::{Engine as _, engine::general_purpose};
+    use std::convert::Infallible;
+    use tower::ServiceExt;
+
+    async fn dummy_service(_req: Request<Body>) -> Result<Response, Infallible> {
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from("ok"))
+            .unwrap())
+    }
+
+    #[tokio::test]
+    async fn test_basic_auth_layer() {
+        let username = "user";
+        let password = "pass";
+        let layer = BasicAuthLayer::new(username, password);
+        let service = layer.layer(tower::service_fn(dummy_service));
+
+        // Request without Authorization header
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = service.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // Request with bad credentials
+        let bad_auth = format!("Basic {}", general_purpose::STANDARD.encode("user:wrong"));
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, bad_auth)
+            .body(Body::empty())
+            .unwrap();
+        let resp = service.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // Request with good credentials
+        let good_auth = format!(
+            "Basic {}",
+            general_purpose::STANDARD.encode(format!("{}:{}", username, password))
+        );
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, good_auth)
+            .body(Body::empty())
+            .unwrap();
+        let resp = service.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+}

@@ -1,6 +1,7 @@
 //! Axum layers
 
 pub mod basic_auth;
+pub mod logger;
 
 use crate::server::axum::response::ApiErrorResponse;
 use axum::http::header::CONTENT_TYPE;
@@ -40,5 +41,20 @@ pub fn header_value_to_str(value: Option<&HeaderValue>) -> &str {
     match value {
         Some(value) => from_utf8(value.as_bytes()).unwrap_or_default(),
         None => "",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_header_value_to_str() {
+        let header_value = HeaderValue::from_static("test_value");
+        let result = header_value_to_str(Some(&header_value));
+        assert_eq!(result, "test_value");
+
+        let none_result = header_value_to_str(None);
+        assert_eq!(none_result, "");
     }
 }
