@@ -1,7 +1,9 @@
 //! Axum layers
 
 pub mod basic_auth;
+pub mod cors;
 pub mod logger;
+pub mod request_id;
 
 use crate::server::axum::response::ApiErrorResponse;
 use axum::http::header::CONTENT_TYPE;
