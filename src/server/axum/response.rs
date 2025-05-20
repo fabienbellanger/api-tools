@@ -123,6 +123,10 @@ impl ApiError {
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiErrorResponse::new(StatusCode::SERVICE_UNAVAILABLE, message)),
             ),
+            StatusCode::UNPROCESSABLE_ENTITY => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ApiErrorResponse::new(StatusCode::UNPROCESSABLE_ENTITY, message)),
+            ),
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, message)),
@@ -167,6 +171,29 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn test_api_success_partial_eq() {
+        let success1 = ApiSuccess::new(StatusCode::OK, json!({"data": "test"}));
+        let success2 = ApiSuccess::new(StatusCode::OK, json!({"data": "test"}));
+        assert_eq!(success1, success2);
+
+        let success3 = ApiSuccess::new(StatusCode::BAD_REQUEST, json!({"data": "test"}));
+        assert_ne!(success1, success3);
+    }
+
+    #[tokio::test]
+    async fn test_api_success_into_response() {
+        let data = json!({"hello": "world"});
+        let api_success = ApiSuccess::new(StatusCode::OK, data.clone());
+        let response = api_success.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(body_str, data.to_string());
+    }
+
+    #[test]
     fn test_new_api_error_response() {
         let error = ApiErrorResponse::new(StatusCode::BAD_REQUEST, "Bad request");
         assert_eq!(error.code, 400);
@@ -174,7 +201,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_api_error_into_response() {
+    async fn test_api_error_into_response_bad_request() {
         let error = ApiError::BadRequest("Invalid input".to_string());
         assert_eq!(error.to_string(), "Bad request: Invalid input");
 
@@ -185,6 +212,167 @@ mod tests {
         let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
         let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
         assert_eq!(body_str, json!({ "code": 400, "message": "Invalid input" }).to_string());
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_unauthorized() {
+        let error = ApiError::Unauthorized("Not authorized".to_string());
+        assert_eq!(error.to_string(), "Unauthorized: Not authorized");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(
+            body_str,
+            json!({ "code": 401, "message": "Not authorized" }).to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_forbidden() {
+        let error = ApiError::Forbidden("Access denied".to_string());
+        assert_eq!(error.to_string(), "Forbidden: Access denied");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(body_str, json!({ "code": 403, "message": "Access denied" }).to_string());
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_not_found() {
+        let error = ApiError::NotFound("Resource missing".to_string());
+        assert_eq!(error.to_string(), "Not found: Resource missing");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(
+            body_str,
+            json!({ "code": 404, "message": "Resource missing" }).to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_unprocessable_entity() {
+        let error = ApiError::UnprocessableEntity("Invalid data".to_string());
+        assert_eq!(error.to_string(), "Unprocessable entity: Invalid data");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(body_str, json!({ "code": 422, "message": "Invalid data" }).to_string());
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_internal_server_error() {
+        let error = ApiError::InternalServerError("Unexpected".to_string());
+        assert_eq!(error.to_string(), "Internal server error: Unexpected");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(body_str, json!({ "code": 500, "message": "Unexpected" }).to_string());
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_timeout() {
+        let error = ApiError::Timeout;
+        assert_eq!(error.to_string(), "Timeout");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(
+            body_str,
+            json!({ "code": 408, "message": "Request timeout" }).to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_too_many_requests() {
+        let error = ApiError::TooManyRequests;
+        assert_eq!(error.to_string(), "Too many requests");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(
+            body_str,
+            json!({ "code": 429, "message": "Too many requests" }).to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_method_not_allowed() {
+        let error = ApiError::MethodNotAllowed;
+        assert_eq!(error.to_string(), "Method not allowed");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(
+            body_str,
+            json!({ "code": 405, "message": "Method not allowed" }).to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_payload_too_large() {
+        let error = ApiError::PayloadTooLarge;
+        assert_eq!(error.to_string(), "Payload too large");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(
+            body_str,
+            json!({ "code": 413, "message": "Payload too large" }).to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_api_error_into_response_service_unavailable() {
+        let error = ApiError::ServiceUnavailable;
+        assert_eq!(error.to_string(), "Service unavailable");
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+        let body = response.into_body();
+        let body_bytes = axum::body::to_bytes(body, 1_024).await.unwrap();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert_eq!(
+            body_str,
+            json!({ "code": 503, "message": "Service unavailable" }).to_string()
+        );
     }
 
     #[tokio::test]

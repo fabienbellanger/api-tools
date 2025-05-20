@@ -134,6 +134,16 @@ mod tests {
         let resp = service.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
+        // Request with invalid credentials
+        let bad_auth = format!("Basic {}", general_purpose::STANDARD.encode(""));
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, bad_auth)
+            .body(Body::empty())
+            .unwrap();
+        let resp = service.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
         // Request with bad credentials
         let bad_auth = format!("Basic {}", general_purpose::STANDARD.encode("user:wrong"));
         let req = Request::builder()
