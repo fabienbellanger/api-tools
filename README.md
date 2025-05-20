@@ -29,6 +29,17 @@ cargo add api-tools
 cargo add api-tools -F full
 ```
 
+## Features list
+
+| Name   | Description         | Default |
+| ------ | ------------------- | :-----: |
+| `axum` | Enable Axum feature |   ✅    |
+| `full` | Enable all features |   ❌    |
+
+## Examples
+
+TODO
+
 ## Code coverage
 
 Tool used: [tarpaulin](https://github.com/xd009642/tarpaulin)
@@ -63,14 +74,3 @@ cargo install cargo-msrv
 cargo msrv find
 cargo msrv verify
 ```
-
-## Features list
-
-| Name   | Description         | Default |
-|--------|---------------------|:-------:|
-| `axum` | Enable Axum feature |    ✅    |
-| `full` | Enable all features |    ❌    |
-
-## Examples
-
-TODO

@@ -1,0 +1,6 @@
+{
+    "editor.formatOnSave": true,
+    "editor.foldingImportsByDefault": true,
+    "rust-analyzer.cargo.features": "all",
+    "rust-analyzer.check.features": "all"
+}
