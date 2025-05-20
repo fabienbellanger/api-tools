@@ -12,14 +12,14 @@ For standard functionalities, no additional dependencies are required:
 
 ```toml
 [dependencies]
-api-tools = "0.0.1"
+api-tools = "0.0.3"
 ```
 
 If you need all [features](#Features-list), you can use the `full` feature:
 
 ```toml
 [dependencies]
-api-tools = { version = "0.0.1", features = ["full"] }
+api-tools = { version = "0.0.3", features = ["full"] }
 ```
 
 Or you can use `cargo add` command:
@@ -33,7 +33,7 @@ cargo add api-tools -F full
 
 | Name   | Description         | Default |
 | ------ | ------------------- | :-----: |
-| `axum` | Enable Axum feature |   ✅    |
+| `axum` | Enable Axum feature |   ❌    |
 | `full` | Enable all features |   ❌    |
 
 ## Examples
