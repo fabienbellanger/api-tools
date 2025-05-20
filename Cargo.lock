@@ -58,6 +58,7 @@ dependencies = [
  "mime",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "thiserror 2.0.12",
  "tokio",
  "tower",

@@ -80,7 +80,7 @@ impl Pagination {
         self.limit
     }
 
-    /// Set max limit (between `PAGINATION_MIN_LIMIT` and `PAGINATION_MAX_LIMIT`)
+    /// Set a max limit (between `PAGINATION_MIN_LIMIT` and `PAGINATION_MAX_LIMIT`)
     pub fn set_max_limit(&mut self, max_limit: u32) {
         let max_limit = max_limit.clamp(PAGINATION_MIN_LIMIT, PAGINATION_MAX_LIMIT);
         self.max_limit = Some(max_limit);
