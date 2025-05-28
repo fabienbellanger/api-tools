@@ -35,6 +35,11 @@ upgrade:
 	$(CARGO) upgrade
 	$(CARGO) update
 
+## upgrade-force: Upgrade crates with incompatible changes
+upgrade-force:
+	$(CARGO) upgrade --incompatible
+	$(CARGO) update
+
 ## lint: Run clippy and rustfmt
 lint:
 	$(CARGO) fmt

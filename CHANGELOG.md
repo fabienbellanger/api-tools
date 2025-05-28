@@ -18,7 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.0.2` (2025-05-20) [CURRENT]
+## [Unreleased]
+
+### Changed
+
+- Bump `tokio` to `1.45.1`
+- Bump `uuid` to `1.17.0`
+
+## `0.0.3` (2025-05-20) [CURRENT]
+
+### Changed
+
+- Add all features in [docs.rs](https://docs.rs)
+
+## `0.0.2` (2025-05-20)
 
 ### Fixed
 
