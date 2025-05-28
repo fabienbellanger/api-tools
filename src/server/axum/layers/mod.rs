@@ -2,6 +2,7 @@
 
 pub mod basic_auth;
 pub mod cors;
+pub mod http_errors;
 pub mod logger;
 pub mod request_id;
 
