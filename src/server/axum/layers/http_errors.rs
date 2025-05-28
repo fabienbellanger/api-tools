@@ -8,8 +8,10 @@ use futures::future::BoxFuture;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
+/// Configuration for the `HttpErrorsLayer`
 #[derive(Clone, Debug)]
 pub struct HttpErrorsConfig {
+    /// Maximum size of the body in bytes
     pub body_max_size: usize,
 }
 
