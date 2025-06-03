@@ -56,13 +56,14 @@ cargo add api-tools -F full
 
 #### Layers
 
-| Name              | Description                                                                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `BasicAuthLayer`  | Provides HTTP Basic Authentication middleware for protecting routes with username and password                                     |
-| `CorsLayer`       | Adds Cross-Origin Resource Sharing (CORS) headers to responses, allowing or restricting resource sharing between different origins |
-| `HttpErrorsLayer` | Middleware for intercepting and customizing HTTP error responses, enabling standardized error handling across your API             |
-| `LoggerLayer`     | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                    |
-| `RequestId`       | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                |
+| Name               | Description                                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `BasicAuthLayer`   | Provides HTTP Basic Authentication middleware for protecting routes with username and password                                           |
+| `CorsLayer`        | Adds Cross-Origin Resource Sharing (CORS) headers to responses, allowing or restricting resource sharing between different origins       |
+| `HttpErrorsLayer`  | Middleware for intercepting and customizing HTTP error responses, enabling standardized error handling across your API                   |
+| `LoggerLayer`      | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                          |
+| `RequestId`        | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                      |
+| `TimeLimiterLayer` | Middleware that restricts API usage to specific time slots. Outside of these allowed periods, it returns a 503 Service Unavailable error |
 
 ##### Utility functions
 
@@ -89,7 +90,7 @@ cargo add api-tools -F full
 
 ## Code coverage
 
-- [2025-05-20] `55.37% coverage, 170/307 lines covered`
+- [2025-06-03] `54.24% coverage, 192/354 lines covered`
 
 ## To-Do list
 

@@ -18,7 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## [Unreleased]
+## `0.1.0` (2025-06-03) [CURRENT]
+
+### Added
+
+- Add `TimeLimiterLayer` layer
 
 ### Changed
 
@@ -27,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump `tower-http` to `0.6.5`
 - [BREAKING] Rename `ExtractRequestId` extractor to `RequestId`
 
-## `0.0.4` (2025-05-28) [CURRENT]
+## `0.0.4` (2025-05-28)
 
 ### Added
 

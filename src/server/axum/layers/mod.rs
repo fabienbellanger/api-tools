@@ -5,6 +5,7 @@ pub mod cors;
 pub mod http_errors;
 pub mod logger;
 pub mod request_id;
+pub mod time_limiter;
 
 use crate::server::axum::response::ApiErrorResponse;
 use axum::http::header::CONTENT_TYPE;
