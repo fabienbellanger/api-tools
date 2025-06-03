@@ -10,9 +10,9 @@ use axum::http::{HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 
 /// Request ID extractor from HTTP headers
-pub struct ExtractRequestId(pub HeaderValue);
+pub struct RequestId(pub HeaderValue);
 
-impl<S> FromRequestParts<S> for ExtractRequestId
+impl<S> FromRequestParts<S> for RequestId
 where
     S: Send + Sync,
 {
@@ -20,8 +20,8 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         match parts.headers.get(REQUEST_ID_HEADER.clone()) {
-            Some(id) => Ok(ExtractRequestId(id.clone())),
-            _ => Ok(ExtractRequestId(HeaderValue::from_static(""))),
+            Some(id) => Ok(RequestId(id.clone())),
+            _ => Ok(RequestId(HeaderValue::from_static(""))),
         }
     }
 }

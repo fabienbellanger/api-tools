@@ -6,6 +6,11 @@
 
 > Toolkit for API in Rust
 
+API Tools is a Rust library providing utilities for developing robust, consistent, and secure APIs.
+It offers ready-to-use layers, extractors, error handling, and helpers designed to simplify API development, especially
+with the Axum framework. The toolkit aims to standardize common API patterns and reduce boilerplate in your Rust
+projects.
+
 ## Installation
 
 For standard functionalities, no additional dependencies are required:
@@ -36,41 +41,56 @@ cargo add api-tools -F full
 | `axum` | Enable Axum feature |   ❌    |
 | `full` | Enable all features |   ❌    |
 
-## Examples
+## Components
 
-TODO
+### Value objects
+
+| Name          | Description                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `UtcDateTime` | A wrapper around `chrono::DateTime` to handle date and time values in UTC                  |
+| `Timezone`    | A wrapper around `chrono_tz::Tz` to handle time zones                                      |
+| `Pagination`  | A struct to handle pagination parameters, including page number, page size and total count |
+| `QuerySort`   | A struct to handle sorting query parameters, including field and direction                 |
+
+### Axum
+
+#### Layers
+
+| Name              | Description                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `BasicAuthLayer`  | Provides HTTP Basic Authentication middleware for protecting routes with username and password                                     |
+| `CorsLayer`       | Adds Cross-Origin Resource Sharing (CORS) headers to responses, allowing or restricting resource sharing between different origins |
+| `HttpErrorsLayer` | Middleware for intercepting and customizing HTTP error responses, enabling standardized error handling across your API             |
+| `LoggerLayer`     | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                    |
+| `RequestId`       | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                |
+
+##### Utility functions
+
+| Name                  | Description                                                              |
+| --------------------- | ------------------------------------------------------------------------ |
+| `body_from_parts`     | Construct a response body from `Parts`, status code, message and headers |
+| `header_value_to_str` | Convert `HeaderValue` to `&str`                                          |
+
+#### Extractors
+
+| Name               | Description                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| `ExtractRequestId` | Extracts the unique request identifier (UUID) from the request headers |
+| `Path`             | Extracts and deserializes path parameters from the request URL         |
+| `Query`            | Extracts and deserializes query string parameters from the request URL |
+
+#### Response helpers
+
+| Name               | Description                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `ApiSuccess`       | Represents a successful API response (Status code and data in JSON). It implements the `IntoResponse` trait |
+| `ApiError`         | Represents a list of HTTP errors                                                                            |
+| `ApiErrorResponse` | Encapsulates the details of an API error response, including the status code and the error message          |
 
 ## Code coverage
 
-Tool used: [tarpaulin](https://github.com/xd009642/tarpaulin)
-
-```shell
-cargo install cargo-tarpaulin
-```
-
-```shell
-cargo tarpaulin --all-features --ignore-tests --line --count --include-files src/**/*
-```
-
-To generation HTML file [`tarpaulin-report.html`](tarpaulin-report.html):
-
-```shell
-cargo tarpaulin --all-features --ignore-tests --line --count --include-files src/**/* --out Html
-```
-
-_Results:_
-
 - [2025-05-20] `55.37% coverage, 170/307 lines covered`
 
-## MSRV
+## To-Do list
 
-Tool used: [cargo-msrv](https://github.com/foresterre/cargo-msrv)
-
-```shell
-cargo install cargo-msrv
-```
-
-```shell
-cargo msrv find
-cargo msrv verify
-```
+- [ ] Add more documentation

@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
+## [Unreleased]
+
+### Changed
+
+- Complete the `README.md` file
+- Move MSRV and Coverage information from `README.md` to `HELP.md` file
+- Bump `tower-http` to `0.6.5`
+- [BREAKING] Rename `ExtractRequestId` extractor to `RequestId`
+
 ## `0.0.4` (2025-05-28) [CURRENT]
 
 ### Added
