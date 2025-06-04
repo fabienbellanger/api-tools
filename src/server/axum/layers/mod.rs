@@ -4,6 +4,8 @@ pub mod basic_auth;
 pub mod cors;
 pub mod http_errors;
 pub mod logger;
+#[cfg(feature = "prometheus")]
+pub mod prometheus;
 pub mod request_id;
 pub mod time_limiter;
 
