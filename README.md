@@ -36,10 +36,11 @@ cargo add api-tools -F full
 
 ## Features list
 
-| Name   | Description         | Default |
-| ------ | ------------------- | :-----: |
-| `axum` | Enable Axum feature |   ❌    |
-| `full` | Enable all features |   ❌    |
+| Name         | Description                       | Default |
+| ------------ | --------------------------------- | :-----: |
+| `axum`       | Enable Axum feature               |   ❌    |
+| `prometheus` | Enable Prometheus metrics feature |   ❌    |
+| `full`       | Enable all features               |   ❌    |
 
 ## Components
 
@@ -64,6 +65,7 @@ cargo add api-tools -F full
 | `LoggerLayer`      | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                          |
 | `RequestId`        | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                      |
 | `TimeLimiterLayer` | Middleware that restricts API usage to specific time slots. Outside of these allowed periods, it returns a 503 Service Unavailable error |
+| `PrometheusMetric` | Middleware that collects and exposes Prometheus-compatible metrics for monitoring API performance and usage                              |
 
 ##### Utility functions
 

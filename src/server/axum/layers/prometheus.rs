@@ -20,7 +20,7 @@ pub struct PrometheusMetric {
 
 impl PrometheusMetric {
     /// Return a new `PrometheusHandle`
-    pub fn get_handle() -> Result<PrometheusHandle, ApiError> {
+    pub fn get_handle(&self) -> Result<PrometheusHandle, ApiError> {
         PrometheusBuilder::new()
             .set_buckets_for_metric(
                 Matcher::Full("http_requests_duration_seconds".to_string()),
