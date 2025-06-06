@@ -1,13 +1,12 @@
 //! Prometheus' metrics layer
 
-
+use crate::server::axum::response::ApiError;
 use axum::body::Body;
 use axum::{extract::MatchedPath, middleware::Next, response::IntoResponse};
 use hyper::Request;
 use metrics::{counter, histogram};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::time::Instant;
-use crate::server::axum::response::ApiError;
 
 /// Buckets for HTTP request duration in seconds
 pub const SECONDS_DURATION_BUCKETS: &[f64; 11] = &[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
