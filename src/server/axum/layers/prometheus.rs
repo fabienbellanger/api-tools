@@ -1,59 +1,79 @@
 //! Prometheus' metrics layer
 
-use crate::server::axum::response::ApiError;
 use axum::body::Body;
-use axum::{extract::MatchedPath, middleware::Next, response::IntoResponse};
-use hyper::Request;
+use axum::extract::MatchedPath;
+use axum::http::Request;
+use axum::response::Response;
+use futures::future::BoxFuture;
 use metrics::{counter, histogram};
-use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use std::task::{Context, Poll};
 use std::time::Instant;
-
-/// Buckets for HTTP request duration in seconds
-pub const SECONDS_DURATION_BUCKETS: &[f64; 11] = &[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
+use tower::{Layer, Service};
 
 /// Prometheus metrics layer for Axum
-pub struct PrometheusMetric {
+pub struct PrometheusLayer {
     /// Service name
     pub service_name: String,
 }
 
-impl PrometheusMetric {
-    /// Return a new `PrometheusHandle`
-    pub fn get_handle(&self) -> Result<PrometheusHandle, ApiError> {
-        PrometheusBuilder::new()
-            .set_buckets_for_metric(
-                Matcher::Full("http_requests_duration_seconds".to_string()),
-                SECONDS_DURATION_BUCKETS,
-            )
-            .map_err(|err| ApiError::InternalServerError(err.to_string()))?
-            .install_recorder()
-            .map_err(|err| ApiError::InternalServerError(err.to_string()))
+impl<S> Layer<S> for PrometheusLayer {
+    type Service = PrometheusMiddleware<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        PrometheusMiddleware {
+            inner,
+            service_name: self.service_name.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct PrometheusMiddleware<S> {
+    inner: S,
+    service_name: String,
+}
+
+impl<S> Service<Request<Body>> for PrometheusMiddleware<S>
+where
+    S: Service<Request<Body>, Response = Response> + Send + 'static,
+    S::Future: Send + 'static,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    // `BoxFuture` is a type alias for `Pin<Box<dyn Future + Send + 'a>>`
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
     }
 
-    /// Layer tracking requests
-    pub async fn get_layer(&self, req: Request<Body>, next: Next) -> impl IntoResponse {
+    fn call(&mut self, request: Request<Body>) -> Self::Future {
         let start = Instant::now();
-        let path = if let Some(matched_path) = req.extensions().get::<MatchedPath>() {
+        let path = if let Some(matched_path) = request.extensions().get::<MatchedPath>() {
             matched_path.as_str().to_owned()
         } else {
-            req.uri().path().to_owned()
+            request.uri().path().to_owned()
         };
-        let method = req.method().clone();
+        let method = request.method().to_string();
+        let service_name = self.service_name.clone();
 
-        let response = next.run(req).await;
+        let future = self.inner.call(request);
+        Box::pin(async move {
+            let response = future.await?;
 
-        let latency = start.elapsed().as_secs_f64();
-        let status = response.status().as_u16().to_string();
-        let labels = [
-            ("method", method.to_string()),
-            ("path", path),
-            ("service", self.service_name.clone()),
-            ("status", status),
-        ];
+            let latency = start.elapsed().as_secs_f64();
+            let status = response.status().as_u16().to_string();
+            let labels = [
+                ("method", method),
+                ("path", path),
+                ("service", service_name),
+                ("status", status),
+            ];
 
-        counter!("http_requests_total", &labels).increment(1);
-        histogram!("http_requests_duration_seconds", &labels).record(latency);
+            counter!("http_requests_total", &labels).increment(1);
+            histogram!("http_requests_duration_seconds", &labels).record(latency);
 
-        response
+            Ok(response)
+        })
     }
 }
