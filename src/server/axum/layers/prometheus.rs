@@ -62,17 +62,20 @@ where
         Box::pin(async move {
             let response = future.await?;
 
-            let latency = start.elapsed().as_secs_f64();
-            let status = response.status().as_u16().to_string();
-            let labels = [
-                ("method", method),
-                ("path", path),
-                ("service", service_name),
-                ("status", status),
-            ];
+            // Exclude metrics endpoint
+            if path != "/metrics" {
+                let latency = start.elapsed().as_secs_f64();
+                let status = response.status().as_u16().to_string();
+                let labels = [
+                    ("method", method),
+                    ("path", path),
+                    ("service", service_name),
+                    ("status", status),
+                ];
 
-            counter!("http_requests_total", &labels).increment(1);
-            histogram!("http_requests_duration_seconds", &labels).record(latency);
+                counter!("http_requests_total", &labels).increment(1);
+                histogram!("http_requests_duration_seconds", &labels).record(latency);
+            }
 
             Ok(response)
         })

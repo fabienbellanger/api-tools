@@ -18,7 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.2.0` (2025-06-06) [CURRENT]
+## `0.2.1` (2025-06-06) [CURRENT]
+
+### Added
+
+- Add `PrometheusHandler`
+
+### Fixed
+
+- Fix `PrometheusLayer`
+
+## `0.2.0` (2025-06-06)
 
 ### Added
 

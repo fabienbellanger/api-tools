@@ -65,7 +65,7 @@ cargo add api-tools -F full
 | `LoggerLayer`      | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                          |
 | `RequestId`        | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                      |
 | `TimeLimiterLayer` | Middleware that restricts API usage to specific time slots. Outside of these allowed periods, it returns a 503 Service Unavailable error |
-| `PrometheusMetric` | Middleware that collects and exposes Prometheus-compatible metrics for monitoring API performance and usage                              |
+| `PrometheusLayer`  | Middleware that collects and exposes Prometheus-compatible metrics for monitoring API performance and usage                              |
 
 ##### Utility functions
 
@@ -90,9 +90,15 @@ cargo add api-tools -F full
 | `ApiError`         | Represents a list of HTTP errors                                                                            |
 | `ApiErrorResponse` | Encapsulates the details of an API error response, including the status code and the error message          |
 
+#### Handlers
+
+| Name                | Description                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| `PrometheusHandler` | Handler that exposes Prometheus metrics endpoint, allowing metrics scraping by Prometheus servers |
+
 ## Code coverage
 
-- [2025-06-03] `54.24% coverage, 192/354 lines covered`
+- [2025-06-06] `49.87% coverage, 192/385 lines covered`
 
 ## To-Do list
 
