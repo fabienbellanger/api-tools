@@ -11,6 +11,7 @@ use std::time::Instant;
 use tower::{Layer, Service};
 
 /// Prometheus metrics layer for Axum
+#[derive(Clone)]
 pub struct PrometheusLayer {
     /// Service name
     pub service_name: String,
