@@ -5,6 +5,7 @@ use axum::extract::MatchedPath;
 use axum::http::Request;
 use axum::response::Response;
 use futures::future::BoxFuture;
+#[cfg(feature = "prometheus")]
 use metrics::{counter, histogram};
 use std::task::{Context, Poll};
 use std::time::Instant;

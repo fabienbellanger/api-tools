@@ -1,6 +1,7 @@
 //! Prometheus metrics handler for Axum
 
 use crate::server::axum::response::ApiError;
+#[cfg(feature = "prometheus")]
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 
 /// Buckets for HTTP request duration in seconds
