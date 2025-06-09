@@ -10,7 +10,7 @@ name = "api-tools"
 readme = "README.md"
 repository = "https://github.com/fabienbellanger/api-tools"
 rust-version = "1.85.1"
-version = "0.2.1"
+version = "0.2.2"
 
 [features]
 axum = []

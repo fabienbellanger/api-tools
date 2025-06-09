@@ -55,7 +55,7 @@ dependencies = [
 
 [[package]]
 name = "api-tools"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "axum",
  "base64",

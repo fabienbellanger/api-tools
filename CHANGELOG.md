@@ -18,7 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.2.1` (2025-06-06) [CURRENT]
+## `0.2.2` (2025-06-09) [CURRENT]
+
+### Fixed
+
+- Export prometheus handler module only if the `prometheus` feature is enable
+
+## `0.2.1` (2025-06-06)
 
 ### Added
 
