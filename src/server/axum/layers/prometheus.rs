@@ -79,11 +79,11 @@ where
 
                 counter!("http_requests_total", &labels).increment(1);
                 histogram!("http_requests_duration_seconds", &labels).record(latency);
-
-                // System metrics
-                let system_metrics = SystemMetrics::new("/").await;
-                system_metrics.add_metrics(service_name);
             }
+
+            // System metrics
+            let system_metrics = SystemMetrics::new("/").await;
+            system_metrics.add_metrics(service_name);
 
             Ok(response)
         })
