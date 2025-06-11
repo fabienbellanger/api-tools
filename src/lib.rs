@@ -62,9 +62,9 @@
 //! | `ApiSuccess`       | Represents a successful API response (Status code and data in JSON). It implements the `IntoResponse` trait |
 //! | `ApiError`         | Represents a list of HTTP errors                                                                            |
 //! | `ApiErrorResponse` | Encapsulates the details of an API error response, including the status code and the error message          |
-//! 
+//!
 //! #### Handlers
-//! 
+//!
 //! | Name                | Description                                                                                       |
 //! | ------------------- | ------------------------------------------------------------------------------------------------- |
 //! | `PrometheusHandler` | Handler that exposes Prometheus metrics endpoint, allowing metrics scraping by Prometheus servers |

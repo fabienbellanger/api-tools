@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
+## [Unreleased]
+
+### Added
+
+- Add system metrics to Prometheus
+
 ## `0.2.2` (2025-06-09) [CURRENT]
 
 ### Fixed
