@@ -98,7 +98,7 @@ cargo add api-tools -F full
 
 ## Code coverage
 
-- [2025-06-06] `49.87% coverage, 192/385 lines covered`
+- [2025-06-11] `44.86% coverage, 192/428 lines covered`
 
 ## To-Do list
 
