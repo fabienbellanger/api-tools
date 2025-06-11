@@ -8,7 +8,7 @@ use bytesize::ByteSize;
 use futures::future::BoxFuture;
 use metrics::{counter, gauge, histogram};
 use std::fmt;
-use std::path::Path;
+use std::path::PathBuf;
 use std::task::{Context, Poll};
 use std::time::Instant;
 use sysinfo::{Disks, System};
@@ -19,6 +19,9 @@ use tower::{Layer, Service};
 pub struct PrometheusLayer {
     /// Service name
     pub service_name: String,
+
+    /// Disk mount points to monitor
+    pub disk_mount_points: Vec<PathBuf>,
 }
 
 impl<S> Layer<S> for PrometheusLayer {
@@ -28,6 +31,7 @@ impl<S> Layer<S> for PrometheusLayer {
         PrometheusMiddleware {
             inner,
             service_name: self.service_name.clone(),
+            disk_mount_points: self.disk_mount_points.clone(),
         }
     }
 }
@@ -36,6 +40,7 @@ impl<S> Layer<S> for PrometheusLayer {
 pub struct PrometheusMiddleware<S> {
     inner: S,
     service_name: String,
+    disk_mount_points: Vec<PathBuf>,
 }
 
 impl<S> Service<Request<Body>> for PrometheusMiddleware<S>
@@ -60,6 +65,7 @@ where
         };
         let method = request.method().to_string();
         let service_name = self.service_name.clone();
+        let disk_mount_points = self.disk_mount_points.clone();
 
         let start = Instant::now();
         let future = self.inner.call(request);
@@ -82,7 +88,7 @@ where
             }
 
             // System metrics
-            let system_metrics = SystemMetrics::new("/").await;
+            let system_metrics = SystemMetrics::new(&disk_mount_points).await;
             system_metrics.add_metrics(service_name);
 
             Ok(response)
@@ -115,7 +121,8 @@ struct SystemMetrics {
 }
 
 impl SystemMetrics {
-    async fn new(disk_mount_point: &str) -> Self {
+    /// Creates a new `SystemMetrics` instance, refreshing the system information
+    async fn new(disk_mount_points: &[PathBuf]) -> Self {
         let mut sys = System::new_all();
 
         // CPU
@@ -140,7 +147,7 @@ impl SystemMetrics {
         let mut total_disks_space = 0;
         let mut used_disks_space = 0;
         for disk in &disks {
-            if disk.mount_point() == Path::new(disk_mount_point) {
+            if disk_mount_points.contains(&disk.mount_point().to_path_buf()) {
                 total_disks_space += disk.total_space();
                 used_disks_space += disk.total_space() - disk.available_space();
             }
@@ -157,6 +164,7 @@ impl SystemMetrics {
         }
     }
 
+    /// Adds the system metrics to Prometheus gauges
     fn add_metrics(&self, service_name: String) {
         gauge!("system_cpu_usage", "service" => service_name.clone()).set(self.cpu_usage);
         gauge!("system_total_memory", "service" => service_name.clone()).set(self.total_memory as f64);

@@ -18,13 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## [Unreleased]
+## `0.3.0` (2025-06-11) [CURRENT]
 
 ### Added
 
-- Add system metrics to Prometheus
+- Add system metrics to Prometheus like CPU, memory, swap and disk usage.
 
-## `0.2.2` (2025-06-09) [CURRENT]
+## `0.2.2` (2025-06-09)
 
 ### Fixed
 
