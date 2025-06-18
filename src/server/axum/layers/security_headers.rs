@@ -61,19 +61,6 @@ pub struct SecurityHeadersMiddleware<S> {
     config: SecurityHeadersConfig,
 }
 
-// pub fn security_headers_layer(config: SecurityHeadersConfig) -> ServiceBuilder<impl Layer<Router> + Clone> {
-//     ServiceBuilder::new()
-//         .layer(SetResponseHeaderLayer::if_not_present(header::CONTENT_SECURITY_POLICY, config.content_security_policy))
-//         .layer(SetResponseHeaderLayer::if_not_present(header::STRICT_TRANSPORT_SECURITY, config.strict_transport_security))
-//         .layer(SetResponseHeaderLayer::if_not_present(header::X_CONTENT_TYPE_OPTIONS, config.x_content_type_options))
-//         .layer(SetResponseHeaderLayer::if_not_present(header::X_FRAME_OPTIONS, config.x_frame_options))
-//         .layer(SetResponseHeaderLayer::if_not_present(header::REFERRER_POLICY, config.referrer_policy))
-//         .layer(SetResponseHeaderLayer::if_not_present(
-//             HeaderName::from_static("permissions-policy"),
-//             config.permissions_policy,
-//         ))
-// }
-
 impl<S> Service<Request<Body>> for SecurityHeadersMiddleware<S>
 where
     S: Service<Request<Body>, Response = Response> + Send + Clone + 'static,
@@ -88,36 +75,22 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, mut request: Request<Body>) -> Self::Future {
-        // Add security headers to the request
-        request.headers_mut().insert(
-            header::CONTENT_SECURITY_POLICY,
-            self.config.content_security_policy.clone(),
-        );
-        request.headers_mut().insert(
-            header::STRICT_TRANSPORT_SECURITY,
-            self.config.strict_transport_security.clone(),
-        );
-        request.headers_mut().insert(
-            header::X_CONTENT_TYPE_OPTIONS,
-            self.config.x_content_type_options.clone(),
-        );
-        request.headers_mut().insert(
-            header::X_FRAME_OPTIONS,
-            self.config.x_frame_options.clone(),
-        );
-        request.headers_mut().insert(
-            header::REFERRER_POLICY,
-            self.config.referrer_policy.clone(),
-        );
-        request.headers_mut().insert(
-            HeaderName::from_static("permissions-policy"),
-            self.config.permissions_policy.clone(),
-        );
-
+    fn call(&mut self, request: Request<Body>) -> Self::Future {
+        let config = self.config.clone();
         let future = self.inner.call(request);
+
         Box::pin(async move {
-            let response: Response = future.await?;
+            let mut response: Response = future.await?;
+
+            let headers = response.headers_mut();
+            headers.insert(header::CONTENT_SECURITY_POLICY, config.content_security_policy);
+            headers.insert(header::STRICT_TRANSPORT_SECURITY, config.strict_transport_security);
+            headers.insert(header::X_CONTENT_TYPE_OPTIONS, config.x_content_type_options);
+            headers.insert(header::X_FRAME_OPTIONS, config.x_frame_options);
+            headers.insert(header::X_XSS_PROTECTION, config.x_xss_protection);
+            headers.insert(header::REFERRER_POLICY, config.referrer_policy);
+            headers.insert(HeaderName::from_static("permissions-policy"), config.permissions_policy);
+
             Ok(response)
         })
     }
