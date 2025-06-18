@@ -7,6 +7,7 @@ pub mod logger;
 #[cfg(feature = "prometheus")]
 pub mod prometheus;
 pub mod request_id;
+pub mod security_headers;
 pub mod time_limiter;
 
 use crate::server::axum::response::ApiErrorResponse;
