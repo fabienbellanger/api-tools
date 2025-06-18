@@ -30,15 +30,16 @@
 //!
 //! #### Layers
 //!
-//! | Name               | Description                                                                                                                              |
-//! | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-//! | `BasicAuthLayer`   | Provides HTTP Basic Authentication middleware for protecting routes with username and password                                           |
-//! | `CorsLayer`        | Adds Cross-Origin Resource Sharing (CORS) headers to responses, allowing or restricting resource sharing between different origins       |
-//! | `HttpErrorsLayer`  | Middleware for intercepting and customizing HTTP error responses, enabling standardized error handling across your API                   |
-//! | `LoggerLayer`      | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                          |
-//! | `RequestId`        | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                      |
-//! | `TimeLimiterLayer` | Middleware that restricts API usage to specific time slots. Outside of these allowed periods, it returns a 503 Service Unavailable error |
-//! | `PrometheusLayer`  | Middleware that collects and exposes Prometheus-compatible metrics for monitoring API performance and usage                              |
+//! | Name                   | Description                                                                                                                              |
+//! | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+//! | `BasicAuthLayer`       | Provides HTTP Basic Authentication middleware for protecting routes with username and password                                           |
+//! | `CorsLayer`            | Adds Cross-Origin Resource Sharing (CORS) headers to responses, allowing or restricting resource sharing between different origins       |
+//! | `HttpErrorsLayer`      | Middleware for intercepting and customizing HTTP error responses, enabling standardized error handling across your API                   |
+//! | `LoggerLayer`          | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                          |
+//! | `RequestId`            | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                      |
+//! | `TimeLimiterLayer`     | Middleware that restricts API usage to specific time slots. Outside of these allowed periods, it returns a 503 Service Unavailable error |
+//! | `PrometheusLayer`      | Middleware that collects and exposes Prometheus-compatible metrics for monitoring API performance and usage                              |
+//! | `SecurityHeadersLayer` | Middleware add security headers like (CSP, etc.)                                                                                         |
 //!
 //! ##### Utility functions
 //!

@@ -1,12 +1,16 @@
 //! Security layer (standard security headers: CSP, HSTS, etc.)
 
-use std::task::{Context, Poll};
 use axum::{
-    body::Body, extract::Request, http::{header, HeaderName, HeaderValue}, response::Response
+    body::Body,
+    extract::Request,
+    http::{HeaderName, HeaderValue, header},
+    response::Response,
 };
 use futures::future::BoxFuture;
+use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
+/// Configuration for security headers
 #[derive(Clone, Debug)]
 pub struct SecurityHeadersConfig {
     pub content_security_policy: HeaderValue,
@@ -39,8 +43,8 @@ pub struct SecurityHeadersLayer {
 
 impl SecurityHeadersLayer {
     /// Create a new `SecurityLayer`
-    pub fn new(config: &SecurityHeadersConfig) -> Self {
-        Self { config: config.clone() }
+    pub fn new(config: SecurityHeadersConfig) -> Self {
+        Self { config }
     }
 }
 
