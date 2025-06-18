@@ -31,7 +31,7 @@ impl Default for SecurityLayerConfig {
     }
 }
 
-pub fn security_headers_layer(config: SecurityLayerConfig) -> ServiceBuilder<impl Layer<Router>> {
+pub fn security_headers_layer(config: SecurityLayerConfig) -> ServiceBuilder<impl Layer<Router> + Clone> {
     ServiceBuilder::new()
         .layer(SetResponseHeaderLayer::if_not_present(header::CONTENT_SECURITY_POLICY, config.content_security_policy))
         .layer(SetResponseHeaderLayer::if_not_present(header::STRICT_TRANSPORT_SECURITY, config.strict_transport_security))
