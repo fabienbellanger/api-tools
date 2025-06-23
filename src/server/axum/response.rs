@@ -92,8 +92,9 @@ pub enum ApiError {
 impl ApiError {
     fn response(code: StatusCode, message: &str) -> impl IntoResponse + '_ {
         let ctx = tracing::Span::current().context();
-        let trace_id = ctx.span().span_context().trace_id().to_string();
+        let trace_id = ctx.span().span_context().trace_id();
         dbg!(&trace_id);
+        let trace_id = trace_id.to_string();
 
         match code {
             StatusCode::REQUEST_TIMEOUT => (
