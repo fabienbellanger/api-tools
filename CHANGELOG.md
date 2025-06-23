@@ -18,7 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.4.0` (2025-06-18) [CURRENT]
+## `0.5.0` (2025-06-23) [CURRENT]
+
+### Added
+
+- Add the trace ID in the `ApiError` body (`trace_id` field)
+
+## `0.4.0` (2025-06-18)
 
 ### Added
 

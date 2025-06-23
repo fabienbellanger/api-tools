@@ -123,7 +123,7 @@ impl ApiError {
             ),
             StatusCode::UNAUTHORIZED => (
                 StatusCode::UNAUTHORIZED,
-                Json(ApiErrorResponse::new(StatusCode::UNAUTHORIZED, message, trace_id)),
+                Json(ApiErrorResponse::new(StatusCode::UNAUTHORIZED, message, None)),
             ),
             StatusCode::FORBIDDEN => (
                 StatusCode::FORBIDDEN,
