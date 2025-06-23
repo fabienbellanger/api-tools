@@ -38,7 +38,7 @@ pub fn body_from_parts(
     }
 
     // Body
-    let msg = serde_json::json!(ApiErrorResponse::new(status_code, message));
+    let msg = serde_json::json!(ApiErrorResponse::new(status_code, message, None));
 
     Bytes::from(msg.to_string())
 }

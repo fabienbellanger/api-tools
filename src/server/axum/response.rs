@@ -3,8 +3,10 @@
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use opentelemetry::trace::TraceContextExt;
 use serde::Serialize;
 use thiserror::Error;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// API response success
 #[derive(Debug, Clone)]
@@ -36,13 +38,16 @@ impl<T: Serialize + PartialEq> IntoResponse for ApiSuccess<T> {
 pub struct ApiErrorResponse<T: Serialize + PartialEq> {
     code: u16,
     message: T,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trace_id: Option<String>,
 }
 
 impl<T: Serialize + PartialEq> ApiErrorResponse<T> {
-    pub fn new(status_code: StatusCode, message: T) -> Self {
+    pub fn new(status_code: StatusCode, message: T, trace_id: Option<String>) -> Self {
         Self {
             code: status_code.as_u16(),
             message,
+            trace_id,
         }
     }
 }
@@ -86,50 +91,77 @@ pub enum ApiError {
 
 impl ApiError {
     fn response(code: StatusCode, message: &str) -> impl IntoResponse + '_ {
+        let ctx = tracing::Span::current().context();
+        let trace_id = ctx.span().span_context().trace_id().to_string();
+
         match code {
             StatusCode::REQUEST_TIMEOUT => (
                 StatusCode::REQUEST_TIMEOUT,
-                Json(ApiErrorResponse::new(StatusCode::REQUEST_TIMEOUT, message)),
+                Json(ApiErrorResponse::new(StatusCode::REQUEST_TIMEOUT, message, None)),
             ),
             StatusCode::TOO_MANY_REQUESTS => (
                 StatusCode::TOO_MANY_REQUESTS,
-                Json(ApiErrorResponse::new(StatusCode::TOO_MANY_REQUESTS, message)),
+                Json(ApiErrorResponse::new(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    message,
+                    Some(trace_id),
+                )),
             ),
             StatusCode::METHOD_NOT_ALLOWED => (
                 StatusCode::METHOD_NOT_ALLOWED,
-                Json(ApiErrorResponse::new(StatusCode::METHOD_NOT_ALLOWED, message)),
+                Json(ApiErrorResponse::new(
+                    StatusCode::METHOD_NOT_ALLOWED,
+                    message,
+                    Some(trace_id),
+                )),
             ),
             StatusCode::PAYLOAD_TOO_LARGE => (
                 StatusCode::PAYLOAD_TOO_LARGE,
-                Json(ApiErrorResponse::new(StatusCode::PAYLOAD_TOO_LARGE, message)),
+                Json(ApiErrorResponse::new(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    message,
+                    Some(trace_id),
+                )),
             ),
             StatusCode::BAD_REQUEST => (
                 StatusCode::BAD_REQUEST,
-                Json(ApiErrorResponse::new(StatusCode::BAD_REQUEST, message)),
+                Json(ApiErrorResponse::new(StatusCode::BAD_REQUEST, message, Some(trace_id))),
             ),
             StatusCode::UNAUTHORIZED => (
                 StatusCode::UNAUTHORIZED,
-                Json(ApiErrorResponse::new(StatusCode::UNAUTHORIZED, message)),
+                Json(ApiErrorResponse::new(StatusCode::UNAUTHORIZED, message, Some(trace_id))),
             ),
             StatusCode::FORBIDDEN => (
                 StatusCode::FORBIDDEN,
-                Json(ApiErrorResponse::new(StatusCode::FORBIDDEN, message)),
+                Json(ApiErrorResponse::new(StatusCode::FORBIDDEN, message, Some(trace_id))),
             ),
             StatusCode::NOT_FOUND => (
                 StatusCode::NOT_FOUND,
-                Json(ApiErrorResponse::new(StatusCode::NOT_FOUND, message)),
+                Json(ApiErrorResponse::new(StatusCode::NOT_FOUND, message, Some(trace_id))),
             ),
             StatusCode::SERVICE_UNAVAILABLE => (
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(ApiErrorResponse::new(StatusCode::SERVICE_UNAVAILABLE, message)),
+                Json(ApiErrorResponse::new(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    message,
+                    Some(trace_id),
+                )),
             ),
             StatusCode::UNPROCESSABLE_ENTITY => (
                 StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ApiErrorResponse::new(StatusCode::UNPROCESSABLE_ENTITY, message)),
+                Json(ApiErrorResponse::new(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    message,
+                    Some(trace_id),
+                )),
             ),
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, message)),
+                Json(ApiErrorResponse::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    message,
+                    Some(trace_id),
+                )),
             ),
         }
     }
@@ -195,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_new_api_error_response() {
-        let error = ApiErrorResponse::new(StatusCode::BAD_REQUEST, "Bad request");
+        let error = ApiErrorResponse::new(StatusCode::BAD_REQUEST, "Bad request", None);
         assert_eq!(error.code, 400);
         assert_eq!(error.message, "Bad request");
     }
