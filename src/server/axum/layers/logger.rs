@@ -114,7 +114,7 @@ where
                     latency = %format!("{:?}", message.latency),
                     body_size = %ByteSize::b(message.body_size),
                 );
-            } else {
+            } else if !message.path.starts_with("/metrics") {
                 info!(
                     status_code = %message.status_code,
                     method = %message.method,

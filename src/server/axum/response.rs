@@ -1,8 +1,8 @@
 //! API response module
 
-use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use opentelemetry::trace::TraceContextExt;
 use serde::Serialize;
 use thiserror::Error;
@@ -35,7 +35,7 @@ impl<T: Serialize + PartialEq> IntoResponse for ApiSuccess<T> {
 
 /// Generic response structure shared by all API responses.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ApiErrorResponse<T: Serialize + PartialEq> {
+pub(crate) struct ApiErrorResponse<T: Serialize + PartialEq> {
     code: u16,
     message: T,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,7 +43,7 @@ pub struct ApiErrorResponse<T: Serialize + PartialEq> {
 }
 
 impl<T: Serialize + PartialEq> ApiErrorResponse<T> {
-    pub fn new(status_code: StatusCode, message: T, trace_id: Option<String>) -> Self {
+    pub(crate) fn new(status_code: StatusCode, message: T, trace_id: Option<String>) -> Self {
         Self {
             code: status_code.as_u16(),
             message,
@@ -93,11 +93,16 @@ impl ApiError {
     fn response(code: StatusCode, message: &str) -> impl IntoResponse + '_ {
         let ctx = tracing::Span::current().context();
         let trace_id = ctx.span().span_context().trace_id().to_string();
+        dbg!(&trace_id);
 
         match code {
             StatusCode::REQUEST_TIMEOUT => (
                 StatusCode::REQUEST_TIMEOUT,
-                Json(ApiErrorResponse::new(StatusCode::REQUEST_TIMEOUT, message, None)),
+                Json(ApiErrorResponse::new(
+                    StatusCode::REQUEST_TIMEOUT,
+                    message,
+                    Some(trace_id),
+                )),
             ),
             StatusCode::TOO_MANY_REQUESTS => (
                 StatusCode::TOO_MANY_REQUESTS,
