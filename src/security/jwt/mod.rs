@@ -120,6 +120,11 @@ impl Jwt {
         Ok(jwt)
     }
 
+    /// Get access token lifetime
+    pub fn access_lifetime(&self) -> i64 {
+        self.access_lifetime
+    }
+
     /// Get refresh token lifetime
     pub fn refresh_lifetime(&self) -> i64 {
         self.refresh_lifetime
