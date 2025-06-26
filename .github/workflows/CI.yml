@@ -40,7 +40,7 @@ jobs:
         run: rustup component add clippy
 
       - name: Run clippy without feature
-        run: cargo clippy --all-features -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Run clippy with all feature
         run: cargo clippy --all-features -- -D warnings
