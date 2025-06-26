@@ -18,9 +18,9 @@ pub enum PayloadError {
     InvalidHeaders,
 }
 
-pub trait PayloadExtractor<H> {
+pub trait PayloadExtractor<H, P: Debug + Serialize + for<'de> Deserialize<'de>> {
     /// Extract payload from request headers
-    fn try_from_headers(headers: &H, jwt: &Jwt) -> Result<Payload, PayloadError>;
+    fn try_from_headers(headers: &H, jwt: &Jwt) -> Result<P, PayloadError>;
 }
 
 /// JWT payload

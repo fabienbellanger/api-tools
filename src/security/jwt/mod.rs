@@ -3,14 +3,12 @@
 pub mod access_token;
 pub mod payload;
 
-use crate::security::jwt::payload::Payload;
+use crate::server::axum::response::ApiError;
 use crate::{security::jwt::access_token::AccessToken, value_objects::datetime::UtcDateTime};
-use chrono::Utc;
 use jsonwebtoken::errors::ErrorKind::ExpiredSignature;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Validation, decode, encode};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
-use std::ops::Add;
 use thiserror::Error;
 
 const JWT_ACCESS_LIFETIME_IN_MINUTES: i64 = 15; // 15 minutes
@@ -36,6 +34,13 @@ pub enum JwtError {
 
     #[error("Expired token")]
     ExpiredToken,
+}
+
+/// JWT error
+impl From<JwtError> for ApiError {
+    fn from(value: JwtError) -> Self {
+        Self::InternalServerError(value.to_string())
+    }
 }
 
 /// JWT representation
@@ -169,48 +174,30 @@ impl Jwt {
     }
 
     /// Generate JWT
-    pub fn generate(
-        &self,
-        subject: Option<String>,
-        data: Option<HashMap<String, String>>,
-    ) -> Result<AccessToken, JwtError> {
+    pub fn generate<P: Debug + Serialize>(&self, payload: P, expired_at: UtcDateTime) -> Result<AccessToken, JwtError> {
         let header = jsonwebtoken::Header::new(self.algorithm);
-        let now = Utc::now();
-        let access_expired_at = now.add(chrono::Duration::minutes(self.access_lifetime));
-
-        let payload = Payload {
-            sub: subject,
-            exp: access_expired_at.timestamp(),
-            iat: now.timestamp(),
-            nbf: now.timestamp(),
-            data,
-        };
 
         match self.encoding_key.clone() {
             Some(encoding_key) => {
                 let token = encode(&header, &payload, &encoding_key)
                     .map_err(|err| JwtError::EncodingKeyError(err.to_string()))?;
 
-                Ok(AccessToken {
-                    token,
-                    expired_at: UtcDateTime::from(access_expired_at),
-                })
+                Ok(AccessToken { token, expired_at })
             }
             _ => Err(JwtError::EncodingKeyError("empty key".to_owned())),
         }
     }
 
     /// Parse JWT
-    pub fn parse(&self, token: &AccessToken) -> Result<Payload, JwtError> {
+    pub fn parse<P: Debug + for<'de> Deserialize<'de>>(&self, token: &AccessToken) -> Result<P, JwtError> {
         let validation = Validation::new(self.algorithm);
 
         match self.decoding_key.clone() {
             Some(decoding_key) => {
-                let token =
-                    decode::<Payload>(&token.token, &decoding_key, &validation).map_err(|err| match err.kind() {
-                        ExpiredSignature => JwtError::ExpiredToken,
-                        _ => JwtError::DecodingKeyError(err.to_string()),
-                    })?;
+                let token = decode::<P>(&token.token, &decoding_key, &validation).map_err(|err| match err.kind() {
+                    ExpiredSignature => JwtError::ExpiredToken,
+                    _ => JwtError::DecodingKeyError(err.to_string()),
+                })?;
 
                 Ok(token.claims)
             }
