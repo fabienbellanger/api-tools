@@ -53,13 +53,13 @@ cargo add api-tools -F full
 | `Pagination`  | A struct to handle pagination parameters, including page number, page size and total count |
 | `QuerySort`   | A struct to handle sorting query parameters, including field and direction                 |
 
-### Security
+### Axum
+
+#### Security
 
 | Name  | Description                              |
 | ----- | ---------------------------------------- |
 | `Jwt` | A wrapper for JWT generation and parsing |
-
-### Axum
 
 #### Layers
 

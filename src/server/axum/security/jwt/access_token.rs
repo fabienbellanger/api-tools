@@ -24,7 +24,7 @@ impl AccessToken {
     /// # Example
     ///
     /// ```
-    /// use api_tools::security::jwt::access_token::AccessToken;
+    /// use api_tools::server::axum::security::jwt::access_token::AccessToken;
     /// use api_tools::value_objects::datetime::UtcDateTime;
     ///
     /// let token = "my_access_token".to_string();

@@ -4,7 +4,8 @@ pub mod access_token;
 pub mod payload;
 
 use crate::server::axum::response::ApiError;
-use crate::{security::jwt::access_token::AccessToken, value_objects::datetime::UtcDateTime};
+use crate::server::axum::security::jwt::access_token::AccessToken;
+use crate::value_objects::datetime::UtcDateTime;
 use jsonwebtoken::errors::ErrorKind::ExpiredSignature;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Validation, decode, encode};
 use serde::{Deserialize, Serialize};

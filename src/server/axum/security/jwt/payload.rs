@@ -1,6 +1,6 @@
 //! JWT Payload module
 
-use crate::security::jwt::Jwt;
+use super::Jwt;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
