@@ -18,7 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.5.0` (2025-06-23) [CURRENT]
+## `0.6.0` (2025-06-26) [CURRENT]
+
+### Added
+
+- Add `Jwt` in security module
+
+## `0.5.0` (2025-06-23)
 
 ### Added
 

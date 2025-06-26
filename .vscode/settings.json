@@ -1,5 +1,7 @@
 {
     "editor.formatOnSave": true,
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 500,
     "editor.foldingImportsByDefault": true,
     "rust-analyzer.cargo.features": "all",
     "rust-analyzer.check.features": "all"

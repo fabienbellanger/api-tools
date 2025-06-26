@@ -1,6 +1,7 @@
 //! Datetime represents a date and time value in the UTC timezone.
 
 use chrono::{DateTime, TimeDelta, Utc};
+use serde::Deserialize;
 use std::fmt::{Display, Formatter};
 use std::ops::Add;
 use thiserror::Error;
@@ -13,7 +14,7 @@ pub enum UtcDateTimeError {
 }
 
 /// Date time with UTC timezone
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Deserialize)]
 pub struct UtcDateTime {
     value: DateTime<Utc>,
 }
@@ -59,10 +60,11 @@ impl UtcDateTime {
         self.value
     }
 
-    /// add date time value
-    // TODO: Add test
-    pub fn add(&mut self, rhs: TimeDelta) -> DateTime<Utc> {
-        self.value.add(rhs)
+    /// Create a new date time from a timestamp
+    pub fn add(&self, rhs: TimeDelta) -> Self {
+        Self {
+            value: self.value.add(rhs),
+        }
     }
 }
 
@@ -120,5 +122,15 @@ mod test {
         let datetime = UtcDateTime::from(dt);
 
         assert_eq!(datetime.timestamp(), 1724846400);
+    }
+
+    #[test]
+    fn test_add() {
+        let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let datetime = UtcDateTime::from(dt);
+        let new_datetime = datetime.add(TimeDelta::seconds(3600));
+        assert_eq!(new_datetime.to_string(), "2024-08-28T13:00:00Z".to_owned());
     }
 }
