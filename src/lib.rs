@@ -76,6 +76,7 @@
 //! | ------------------- | ------------------------------------------------------------------------------------------------- |
 //! | `PrometheusHandler` | Handler that exposes Prometheus metrics endpoint, allowing metrics scraping by Prometheus servers |
 
+#[allow(unused_imports)]
 #[macro_use]
 extern crate tracing;
 
