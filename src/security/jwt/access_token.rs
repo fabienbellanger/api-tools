@@ -24,7 +24,7 @@ impl AccessToken {
     }
 
     /// Extract bearer token from headers
-    fn extract_bearer_token_from_headers(headers: &HeaderMap) -> Option<Self> {
+    pub fn extract_bearer_token_from_headers(headers: &HeaderMap) -> Option<Self> {
         headers
             .get(header::AUTHORIZATION)
             .and_then(|h| h.to_str().ok())

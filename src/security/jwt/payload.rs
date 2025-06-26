@@ -2,7 +2,7 @@
 
 use crate::security::jwt::Jwt;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 use thiserror::Error;
 
 /// Payload errors
