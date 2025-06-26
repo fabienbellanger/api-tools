@@ -23,23 +23,23 @@ pub trait PayloadExtractor<H, P: Debug + Serialize + for<'de> Deserialize<'de>> 
     fn try_from_headers(headers: &H, jwt: &Jwt) -> Result<P, PayloadError>;
 }
 
-/// JWT payload
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Payload {
-    /// Subject
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sub: Option<String>,
+// /// JWT payload
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct Payload {
+//     /// Subject
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub sub: Option<String>,
 
-    /// Issued at
-    pub iat: i64,
+//     /// Issued at
+//     pub iat: i64,
 
-    /// Expiration time
-    pub exp: i64,
+//     /// Expiration time
+//     pub exp: i64,
 
-    /// Not before
-    pub nbf: i64,
+//     /// Not before
+//     pub nbf: i64,
 
-    /// Additional data
-    #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    pub data: Option<HashMap<String, String>>,
-}
+//     /// Additional data
+//     #[serde(flatten, skip_serializing_if = "Option::is_none")]
+//     pub data: Option<HashMap<String, String>>,
+// }
