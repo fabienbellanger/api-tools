@@ -1,7 +1,8 @@
 //! Datetime represents a date and time value in the UTC timezone.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use std::fmt::{Display, Formatter};
+use std::ops::Add;
 use thiserror::Error;
 
 /// UTC Datetime possible errors
@@ -56,6 +57,12 @@ impl UtcDateTime {
     /// Get date time value
     pub fn value(&self) -> DateTime<Utc> {
         self.value
+    }
+
+    /// add date time value
+    // TODO: Add test
+    pub fn add(&mut self, rhs: TimeDelta) -> DateTime<Utc> {
+        self.value.add(rhs)
     }
 }
 
