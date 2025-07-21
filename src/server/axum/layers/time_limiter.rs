@@ -71,7 +71,7 @@ impl Display for TimeSlots {
                 slots.push_str(", ");
             }
         }
-        write!(f, "{}", slots)
+        write!(f, "{slots}")
     }
 }
 
@@ -172,7 +172,7 @@ where
                     let msg = body_from_parts(
                         &mut parts,
                         StatusCode::SERVICE_UNAVAILABLE,
-                        format!("Service unavailable during these times: {}", time_slots).as_str(),
+                        format!("Service unavailable during these times: {time_slots}").as_str(),
                         None,
                     );
                     Response::from_parts(parts, Body::from(msg))
