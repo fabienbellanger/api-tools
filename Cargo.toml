@@ -24,7 +24,7 @@ prometheus = ["dep:metrics", "dep:metrics-exporter-prometheus", "dep:sysinfo"]
 [dependencies]
 
 # Errors
-thiserror = "2.0.15"
+thiserror = "2.0.16"
 
 # API Server
 axum = "0.8.4"
