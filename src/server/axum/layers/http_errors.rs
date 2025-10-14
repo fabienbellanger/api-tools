@@ -65,7 +65,7 @@ where
         Box::pin(async move {
             let response: Response = inner.call(request).await?;
 
-            // Vérifie le content-type
+            // Check the content-type
             let headers = response.headers();
             if let Some(content_type) = headers.get("content-type") {
                 let content_type = content_type.to_str().unwrap_or_default();
@@ -83,6 +83,7 @@ where
                     Ok(body) => match parts.status {
                         StatusCode::METHOD_NOT_ALLOWED => Ok(ApiError::MethodNotAllowed.into_response()),
                         StatusCode::UNPROCESSABLE_ENTITY => Ok(ApiError::UnprocessableEntity(body).into_response()),
+                        StatusCode::NOT_FOUND => Ok(ApiError::NotFound(body).into_response()),
                         _ => Ok(Response::from_parts(parts, Body::from(body))),
                     },
                     Err(err) => Ok(ApiError::InternalServerError(err.to_string()).into_response()),

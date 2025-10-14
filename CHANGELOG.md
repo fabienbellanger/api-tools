@@ -18,7 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.6.1` (2025-06-26) [CURRENT]
+## `0.6.2` (2025-10-14) [CURRENT]
+
+### Changed
+
+- [Breaking] Update MSRV to Rust 1.88
+- Update dependencies
+- Lint
+
+## `0.6.1` (2025-06-26)
 
 ### Changed
 
