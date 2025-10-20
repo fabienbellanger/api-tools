@@ -195,7 +195,7 @@ impl Jwt {
     }
 
     /// Parse JWT
-    pub fn parse<P: Debug + for<'de> Deserialize<'de>>(&self, token: &AccessToken) -> Result<P, JwtError> {
+    pub fn parse<P: Clone + Debug + for<'de> Deserialize<'de>>(&self, token: &AccessToken) -> Result<P, JwtError> {
         let validation = Validation::new(self.algorithm);
 
         match self.decoding_key.clone() {
