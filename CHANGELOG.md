@@ -18,7 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.6.3` (2025-10-23) [CURRENT]
+## `0.6.4` (2025-10-23) [CURRENT]
+
+### Changed
+
+- Improve 404 HTTP code from `HttpErrorsLayer`
+
+## `0.6.3` (2025-10-23)
 
 ### Changed
 

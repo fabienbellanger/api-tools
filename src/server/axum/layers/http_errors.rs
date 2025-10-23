@@ -83,7 +83,9 @@ where
                     Ok(body) => match parts.status {
                         StatusCode::METHOD_NOT_ALLOWED => Ok(ApiError::MethodNotAllowed.into_response()),
                         StatusCode::UNPROCESSABLE_ENTITY => Ok(ApiError::UnprocessableEntity(body).into_response()),
-                        StatusCode::NOT_FOUND => Ok(ApiError::NotFound(body).into_response()),
+                        StatusCode::NOT_FOUND if body.is_empty() => {
+                            Ok(ApiError::NotFound("Resource Not Found".to_owned()).into_response())
+                        }
                         _ => Ok(Response::from_parts(parts, Body::from(body))),
                     },
                     Err(err) => Ok(ApiError::InternalServerError(err.to_string()).into_response()),

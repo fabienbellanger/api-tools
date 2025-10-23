@@ -1,6 +1,6 @@
 [package]
 name = "api-tools"
-version = "0.6.3"
+version = "0.6.4"
 authors = ["Fabien Bellanger <valentil@gmail.com>"]
 description = "An API tools library for Rust"
 edition = "2024"
