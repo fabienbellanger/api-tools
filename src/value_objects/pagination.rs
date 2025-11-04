@@ -130,7 +130,7 @@ mod test {
         pagination.set_max_limit(300);
         assert_eq!(pagination.max_limit, Some(300));
 
-        pagination.set_max_limit(20);
+        pagination.set_max_limit(5);
         assert_eq!(pagination.max_limit, Some(PAGINATION_MIN_LIMIT));
 
         pagination.set_max_limit(600);
