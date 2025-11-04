@@ -18,7 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.6.4` (2025-10-23) [CURRENT]
+## `0.6.5` (2025-11-04) [CURRENT]
+
+### Changed
+
+- [BREAKING] Change `PAGINATION_MIN_LIMIT` from `50` to `10`
+
+## `0.6.4` (2025-10-23)
 
 ### Changed
 

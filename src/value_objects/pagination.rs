@@ -1,7 +1,7 @@
 //! Pagination value object representation
 
 /// Pagination min limit
-pub const PAGINATION_MIN_LIMIT: u32 = 50;
+pub const PAGINATION_MIN_LIMIT: u32 = 10;
 
 /// Pagination max limit
 pub const PAGINATION_MAX_LIMIT: u32 = 500;
