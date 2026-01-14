@@ -18,7 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.6.5` (2025-11-04) [CURRENT]
+## `0.6.6` (2026-01-14) [CURRENT]
+
+### Changed
+
+- Fix duplication code in `logger.rs` (Clippy error)
+- Update dependencies
+
+### Added
+
+- Add `CLAUDE.md` file
+
+## `0.6.5` (2025-11-04)
 
 ### Changed
 

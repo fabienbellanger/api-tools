@@ -80,7 +80,7 @@ where
         let now = Instant::now();
         let request_headers = request.headers();
 
-        let mut message = LoggerMessage {
+        let message = LoggerMessage {
             method: request.method().to_string(),
             path: request.uri().path().to_string(),
             uri: request.uri().to_string(),
@@ -94,39 +94,34 @@ where
         Box::pin(async move {
             let response: Response = future.await?;
 
-            message.status_code = response.status().as_u16();
-            message.version = format!("{:?}", response.version());
-            message.latency = now.elapsed();
-            message.body_size = response.body().size_hint().lower();
+            let status_code = response.status().as_u16();
+            let version = format!("{:?}", response.version());
+            let latency = now.elapsed();
+            let body_size = response.body().size_hint().lower();
+
+            macro_rules! log_request {
+                ($level:ident) => {
+                    $level!(
+                        status_code = %status_code,
+                        method = %message.method,
+                        path = %message.path,
+                        uri = %message.uri,
+                        host = %message.host,
+                        request_id = %message.request_id,
+                        user_agent = %message.user_agent,
+                        version = %version,
+                        latency = %format!("{:?}", latency),
+                        body_size = %ByteSize::b(body_size),
+                    );
+                };
+            }
 
             if response.status() >= StatusCode::INTERNAL_SERVER_ERROR
                 && response.status() != StatusCode::SERVICE_UNAVAILABLE
             {
-                error!(
-                    status_code = %message.status_code,
-                    method = %message.method,
-                    path = %message.path,
-                    uri = %message.uri,
-                    host = %message.host,
-                    request_id = %message.request_id,
-                    user_agent = %message.user_agent,
-                    version = %message.version,
-                    latency = %format!("{:?}", message.latency),
-                    body_size = %ByteSize::b(message.body_size),
-                );
+                log_request!(error);
             } else if !message.path.starts_with("/metrics") {
-                info!(
-                    status_code = %message.status_code,
-                    method = %message.method,
-                    path = %message.path,
-                    uri = %message.uri,
-                    host = %message.host,
-                    request_id = %message.request_id,
-                    user_agent = %message.user_agent,
-                    version = %message.version,
-                    latency = %format!("{:?}", message.latency),
-                    body_size = %ByteSize::b(message.body_size),
-                );
+                log_request!(info);
             }
 
             Ok(response)
