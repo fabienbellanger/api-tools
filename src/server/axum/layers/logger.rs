@@ -2,7 +2,7 @@
 
 use super::header_value_to_str;
 use axum::body::HttpBody;
-use axum::http::StatusCode;
+use axum::http::{Method, StatusCode};
 use axum::{body::Body, http::Request, response::Response};
 use bytesize::ByteSize;
 use futures::future::BoxFuture;
@@ -93,6 +93,11 @@ where
         let future = self.inner.call(request);
         Box::pin(async move {
             let response: Response = future.await?;
+
+            // Skip logging for OPTIONS requests
+            if message.method == Method::OPTIONS.to_string() {
+                return Ok(response);
+            }
 
             let status_code = response.status().as_u16();
             let version = format!("{:?}", response.version());

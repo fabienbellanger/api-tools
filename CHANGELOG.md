@@ -18,7 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.6.6` (2026-01-14) [CURRENT]
+## `0.7.0` (2026-02-12) [CURRENT]
+
+### Changed
+
+- Skip logging for OPTIONS requests
+- Update dependencies
+
+## `0.6.6` (2026-01-14)
 
 ### Changed
 
