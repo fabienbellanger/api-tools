@@ -39,7 +39,10 @@ mod tests {
         let id = maker.make_request_id(&request).expect("must produce a request id");
         let value = id.header_value().to_str().expect("ascii");
 
-        assert!(Uuid::parse_str(value).is_ok(), "expected a parseable UUID, got {value:?}");
+        assert!(
+            Uuid::parse_str(value).is_ok(),
+            "expected a parseable UUID, got {value:?}"
+        );
     }
 
     #[test]

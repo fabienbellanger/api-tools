@@ -390,7 +390,9 @@ mod tests {
         let api_err: ApiError = JwtError::ExpiredToken.into();
         assert!(matches!(api_err, ApiError::InternalServerError(_)));
         // The Display payload of the JwtError is preserved.
-        let ApiError::InternalServerError(msg) = api_err else { unreachable!() };
+        let ApiError::InternalServerError(msg) = api_err else {
+            unreachable!()
+        };
         assert_eq!(msg, "Expired token");
     }
 

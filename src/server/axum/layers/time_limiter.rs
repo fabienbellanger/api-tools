@@ -253,7 +253,10 @@ mod middleware_tests {
     use tower::{ServiceBuilder, ServiceExt};
 
     fn ok_response() -> Response {
-        Response::builder().status(StatusCode::OK).body(Body::from("ok")).unwrap()
+        Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from("ok"))
+            .unwrap()
     }
 
     /// Empty time slots → `contains` is always false → `is_authorized` is
@@ -297,10 +300,7 @@ mod middleware_tests {
             .unwrap();
 
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/json",
-        );
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/json",);
 
         let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
         let body = std::str::from_utf8(&body).unwrap();

@@ -312,7 +312,9 @@ mod tests {
 
     #[test]
     fn test_status_label_common_codes_are_borrowed() {
-        for code in [200, 201, 204, 301, 302, 304, 400, 401, 403, 404, 409, 422, 500, 502, 503, 504] {
+        for code in [
+            200, 201, 204, 301, 302, 304, 400, 401, 403, 404, 409, 422, 500, 502, 503, 504,
+        ] {
             let label = status_label(code);
             assert_eq!(label, code.to_string());
             assert!(

@@ -161,7 +161,10 @@ mod tests {
 
         let h = response.headers();
         assert_eq!(h.get(header::X_FRAME_OPTIONS).unwrap(), "SAMEORIGIN");
-        assert_eq!(h.get(header::REFERRER_POLICY).unwrap(), "strict-origin-when-cross-origin");
+        assert_eq!(
+            h.get(header::REFERRER_POLICY).unwrap(),
+            "strict-origin-when-cross-origin"
+        );
         // Non-overridden headers still applied with their defaults.
         assert_eq!(h.get(header::X_CONTENT_TYPE_OPTIONS).unwrap(), "nosniff");
     }

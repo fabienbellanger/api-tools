@@ -208,12 +208,7 @@ mod tests {
         let app: Router = Router::new().route("/", get(query_handler));
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/?page=1&limit=20")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(Request::builder().uri("/?page=1&limit=20").body(Body::empty()).unwrap())
             .await
             .unwrap();
 

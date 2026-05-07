@@ -50,8 +50,8 @@ mod tests {
     #[test]
     fn handler_install_recorder_lifecycle() {
         // First successful install with custom buckets.
-        let handle = PrometheusHandler::get_handle_with_buckets(&[0.001, 0.01, 0.1])
-            .expect("first install should succeed");
+        let handle =
+            PrometheusHandler::get_handle_with_buckets(&[0.001, 0.01, 0.1]).expect("first install should succeed");
         // Sanity: rendering an empty registry yields a (possibly empty) string.
         let _rendered = handle.render();
 
@@ -60,8 +60,7 @@ mod tests {
         let err = PrometheusHandler::get_handle().expect_err("second install must fail");
         assert!(matches!(err, ApiError::InternalServerError(_)));
 
-        let err = PrometheusHandler::get_handle_with_buckets(&[0.5, 1.0])
-            .expect_err("third install must fail");
+        let err = PrometheusHandler::get_handle_with_buckets(&[0.5, 1.0]).expect_err("third install must fail");
         assert!(matches!(err, ApiError::InternalServerError(_)));
     }
 }

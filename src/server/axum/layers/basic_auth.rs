@@ -146,10 +146,7 @@ mod tests {
             "basic realm=RESTRICTED",
         );
         // body_from_parts forces a JSON ApiErrorResponse body.
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/json",
-        );
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/json",);
 
         let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
         let body = std::str::from_utf8(&body).unwrap();
