@@ -20,3 +20,39 @@ impl MakeRequestId for MakeRequestUuid {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+
+    #[test]
+    fn test_request_id_header_name() {
+        assert_eq!(REQUEST_ID_HEADER.as_str(), "x-request-id");
+    }
+
+    #[test]
+    fn test_make_request_uuid_returns_valid_uuid() {
+        let mut maker = MakeRequestUuid;
+        let request = Request::builder().body(Body::empty()).unwrap();
+
+        let id = maker.make_request_id(&request).expect("must produce a request id");
+        let value = id.header_value().to_str().expect("ascii");
+
+        assert!(Uuid::parse_str(value).is_ok(), "expected a parseable UUID, got {value:?}");
+    }
+
+    #[test]
+    fn test_make_request_uuid_is_unique_across_calls() {
+        let mut maker = MakeRequestUuid;
+        let request = Request::builder().body(Body::empty()).unwrap();
+
+        let id_a = maker.make_request_id(&request).unwrap();
+        let id_b = maker.make_request_id(&request).unwrap();
+
+        assert_ne!(
+            id_a.header_value().to_str().unwrap(),
+            id_b.header_value().to_str().unwrap(),
+        );
+    }
+}

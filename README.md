@@ -71,14 +71,15 @@ cargo add api-tools -F full
 | `LoggerLayer`      | Logs incoming requests and outgoing responses, useful for debugging and monitoring API activity                                          |
 | `RequestId`        | Middleware that generates and attaches a unique request identifier (UUID) to each incoming request for traceability                      |
 | `TimeLimiterLayer` | Middleware that restricts API usage to specific time slots. Outside of these allowed periods, it returns a 503 Service Unavailable error |
-| `PrometheusLayer`  | Middleware that collects and exposes Prometheus-compatible metrics for monitoring API performance and usage                              |
+| `PrometheusLayer`  | Middleware that records per-request Prometheus metrics (`http_requests_total`, `http_requests_duration_seconds`). Host metrics (CPU, memory, swap, disks) are collected separately by `spawn_system_metrics_collector` to keep the request path free of blocking I/O |
 
 ##### Utility functions
 
-| Name                  | Description                                                              |
-| --------------------- | ------------------------------------------------------------------------ |
-| `body_from_parts`     | Construct a response body from `Parts`, status code, message and headers |
-| `header_value_to_str` | Convert `HeaderValue` to `&str`                                          |
+| Name                              | Description                                                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `body_from_parts`                 | Construct a response body from `Parts`, status code, message and headers                                                                                                             |
+| `header_value_to_str`             | Convert `HeaderValue` to `&str`                                                                                                                                                      |
+| `spawn_system_metrics_collector`  | Spawn a background Tokio task that periodically refreshes host metrics (CPU, memory, swap, disks) and publishes them as Prometheus gauges. Call once at app startup (`prometheus` feature) |
 
 #### Extractors
 
@@ -98,13 +99,13 @@ cargo add api-tools -F full
 
 #### Handlers
 
-| Name                | Description                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------- |
-| `PrometheusHandler` | Handler that exposes Prometheus metrics endpoint, allowing metrics scraping by Prometheus servers |
+| Name                | Description                                                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PrometheusHandler` | Installs the global Prometheus recorder. Use `get_handle()` for default histogram buckets or `get_handle_with_buckets(&[f64])` to provide custom buckets   |
 
 ## Code coverage
 
-- [2025-06-26] `41.39% coverage, 233/563 lines covered`
+- [2026-05-07] `56.88% coverage, 310/545 lines covered`
 
 ## To-Do list
 

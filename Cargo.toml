@@ -1,6 +1,6 @@
 [package]
 name = "api-tools"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Fabien Bellanger <valentil@gmail.com>"]
 description = "An API tools library for Rust"
 edition = "2024"
@@ -24,11 +24,11 @@ prometheus = ["dep:metrics", "dep:metrics-exporter-prometheus", "dep:sysinfo"]
 thiserror = "2.0.18"
 
 # API Server
-axum = "0.8.8"
+axum = "0.8.9"
 http-auth-basic = "0.3.7"
-hyper = "1.8.1"
+hyper = "1.9.0"
 tower = { version = "0.5.3", features = ["util"] }
-tower-http = { version = "0.6.8", features = [
+tower-http = { version = "0.6.10", features = [
     "cors",
     "fs",
     "request-id",
@@ -47,22 +47,22 @@ serde_json = "1.0.149"
 serde_urlencoded = "0.7.1"
 
 # Metrics
-metrics = { version = "0.24.3", optional = true }
-metrics-exporter-prometheus = { version = "0.18.1", optional = true }
-sysinfo = { version = "0.38.1", optional = true }
+metrics = { version = "0.24.5", optional = true }
+metrics-exporter-prometheus = { version = "0.18.3", optional = true }
+sysinfo = { version = "0.38.4", optional = true }
 
 bytes = "1.11.1"
 bytesize = "2.3.1"
-chrono = { version = "0.4.43", features = [
+chrono = { version = "0.4.44", features = [
     "clock",
     "std",
     "serde",
 ], default-features = false }
 chrono-tz = "0.10.4"
-futures = "0.3.31"
+futures = "0.3.32"
 mime = "0.3.17"
-tokio = { version = "1.49.0", features = ["full"] }
-uuid = { version = "1.20.0", features = ["v4", "serde"] }
+tokio = { version = "1.52.2", features = ["full"] }
+uuid = { version = "1.23.1", features = ["v4", "serde"] }
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 
 [dev-dependencies]

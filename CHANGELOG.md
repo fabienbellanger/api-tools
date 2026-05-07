@@ -18,7 +18,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.7.0` (2026-02-12) [CURRENT]
+## `0.8.0` (2026-05-07) [CURRENT]
+
+### Fixed
+
+- [CRITICAL] `PrometheusLayer` no longer blocks every HTTP request for ~210 ms.
+  The middleware previously called `SystemMetrics::new()` inline, which contained a
+  `tokio::time::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL)` (200 ms) plus a full
+  `System::new_all()` scan. Host metrics are now collected by a background task; the
+  middleware only records per-request counter and histogram (~µs).
+- Fix typo in metric name: `system_used_disks_usage` → `system_used_disks_space`
+  (now consistent with `system_total_disks_space`).
+
+### Added
+
+- `spawn_system_metrics_collector(service_name, disk_mount_points, interval) -> JoinHandle<()>`:
+  spawns a Tokio background task that periodically refreshes host metrics (CPU, memory,
+  swap, disks) and publishes them as Prometheus gauges. Call once at app startup.
+- `PrometheusHandler::get_handle_with_buckets(&[f64])`: install the recorder with custom
+  histogram buckets for `http_requests_duration_seconds`.
+- `pub const DEFAULT_DURATION_BUCKETS: &[f64]` exported from
+  `server::axum::handlers::prometheus`.
+- Tests for `PrometheusLayer` (latency sentinel) and `spawn_system_metrics_collector`
+  (smoke tick).
+
+### Changed
+
+- [BREAKING] `PrometheusLayer` no longer carries `disk_mount_points`. Pass the mount
+  points to `spawn_system_metrics_collector` instead.
+- [BREAKING] Metric `system_used_disks_usage` renamed to `system_used_disks_space`
+  (dashboards must be updated).
+- Internal label allocations reduced: `service_name` is converted once to `Arc<str>`,
+  standard HTTP methods and common status codes are mapped to `&'static str` to avoid
+  per-request allocations.
+- Fix `clippy::field-reassign-with-default` regression in `jwt/mod.rs` tests.
+- Update `LICENSE` (copyright 2025-2026, full author name).
+- Update `README.md` and `CLAUDE.md` to document the new Prometheus pattern.
+
+## `0.7.0` (2026-02-12)
 
 ### Changed
 

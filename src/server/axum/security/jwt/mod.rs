@@ -240,8 +240,10 @@ mod tests {
         let jwt = Jwt::default();
         assert!(jwt.use_secret());
 
-        let mut jwt = Jwt::default();
-        jwt.algorithm = Algorithm::ES256;
+        let mut jwt = Jwt {
+            algorithm: Algorithm::ES256,
+            ..Default::default()
+        };
         assert!(!jwt.use_secret());
 
         jwt.algorithm = Algorithm::HS256;
@@ -282,5 +284,118 @@ mod tests {
             debug_str,
             format!("JWT => algo: HS512, access_lifetime: 15, refresh_lifetime: {}", 7 * 24)
         );
+    }
+
+    #[test]
+    fn test_jwt_use_secret_all_algorithms() {
+        for algo in [Algorithm::HS256, Algorithm::HS384, Algorithm::HS512] {
+            let jwt = Jwt {
+                algorithm: algo,
+                ..Default::default()
+            };
+            assert!(jwt.use_secret(), "{algo:?} must use secret");
+        }
+        for algo in [
+            Algorithm::ES256,
+            Algorithm::ES384,
+            Algorithm::RS256,
+            Algorithm::RS384,
+            Algorithm::RS512,
+            Algorithm::PS256,
+            Algorithm::PS384,
+            Algorithm::PS512,
+            Algorithm::EdDSA,
+        ] {
+            let jwt = Jwt {
+                algorithm: algo,
+                ..Default::default()
+            };
+            assert!(!jwt.use_secret(), "{algo:?} must use a key pair");
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    struct TestClaims {
+        sub: String,
+        exp: i64,
+    }
+
+    fn future_exp(seconds: i64) -> i64 {
+        chrono::Utc::now().timestamp() + seconds
+    }
+
+    #[test]
+    fn test_jwt_init_and_round_trip_hs512() {
+        let jwt = Jwt::init("HS512", 15, 7 * 24, Some("super-secret"), None, None).expect("init");
+        let claims = TestClaims {
+            sub: "user-42".to_string(),
+            exp: future_exp(60),
+        };
+        let token = jwt.generate(claims.clone(), UtcDateTime::now()).expect("generate");
+        assert!(!token.token.is_empty());
+
+        let parsed: TestClaims = jwt.parse(&token).expect("parse");
+        assert_eq!(parsed, claims);
+    }
+
+    #[test]
+    fn test_jwt_parse_expired_token() {
+        let jwt = Jwt::init("HS256", 15, 7 * 24, Some("secret"), None, None).expect("init");
+        let claims = TestClaims {
+            sub: "user".to_string(),
+            // The default `Validation` leeway is 60 s, so push well past it.
+            exp: future_exp(-300),
+        };
+        let token = jwt.generate(claims, UtcDateTime::now()).expect("generate");
+
+        let err = jwt.parse::<TestClaims>(&token).unwrap_err();
+        assert_eq!(err, JwtError::ExpiredToken);
+    }
+
+    #[test]
+    fn test_jwt_init_invalid_algorithm() {
+        let err = Jwt::init("FOO", 15, 7 * 24, Some("secret"), None, None).unwrap_err();
+        assert_eq!(err, JwtError::InvalidAlgorithm("FOO".to_string()));
+    }
+
+    #[test]
+    fn test_jwt_init_hs256_missing_secret() {
+        let err = Jwt::init("HS256", 15, 7 * 24, None, None, None).unwrap_err();
+        assert!(matches!(err, JwtError::EncodingKeyError(_)));
+    }
+
+    #[test]
+    fn test_jwt_init_es256_with_secret_only_fails() {
+        // ES256 requires a key pair; passing only a secret must fail at the
+        // encoding-key stage.
+        let err = Jwt::init("ES256", 15, 7 * 24, Some("secret"), None, None).unwrap_err();
+        assert!(matches!(err, JwtError::EncodingKeyError(_)));
+    }
+
+    #[test]
+    fn test_jwt_generate_without_encoding_key() {
+        // Bypass `init` to construct a Jwt with no encoding key and check
+        // `generate` reports it cleanly rather than panicking.
+        let jwt = Jwt::default();
+        let claims = TestClaims {
+            sub: "user".to_string(),
+            exp: future_exp(60),
+        };
+        let err = jwt.generate(claims, UtcDateTime::now()).unwrap_err();
+        assert!(matches!(err, JwtError::EncodingKeyError(_)));
+    }
+
+    #[test]
+    fn test_jwt_parse_with_wrong_secret_fails() {
+        let issuer = Jwt::init("HS256", 15, 7 * 24, Some("secret-A"), None, None).expect("init");
+        let verifier = Jwt::init("HS256", 15, 7 * 24, Some("secret-B"), None, None).expect("init");
+        let claims = TestClaims {
+            sub: "user".to_string(),
+            exp: future_exp(60),
+        };
+        let token = issuer.generate(claims, UtcDateTime::now()).expect("generate");
+
+        let err = verifier.parse::<TestClaims>(&token).unwrap_err();
+        assert!(matches!(err, JwtError::DecodingKeyError(_)));
     }
 }
