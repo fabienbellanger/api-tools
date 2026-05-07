@@ -72,31 +72,74 @@ Fonction publique qui spawn une tâche Tokio persistante :
 
 ## Migration côté utilisateur (0.7 → 0.8)
 
+### 1. `Cargo.toml`
+
+```toml
+# Avant
+api-tools = { version = "0.7", features = ["full"] }
+
+# Après
+api-tools = { version = "0.8", features = ["full"] }
+```
+
+### 2. Construction du `PrometheusLayer` — breaking
+
+Le champ `disk_mount_points` a disparu du layer. Le compilateur signalera
+chaque site d'usage manqué (erreur de build, pas un warning silencieux).
+
 ```rust
 // Avant (0.7)
-let layer = PrometheusLayer {
-    service_name: "myapp".into(),
-    disk_mount_points: vec!["/".into()],
-};
+use api_tools::server::axum::layers::prometheus::PrometheusLayer;
 
+let prometheus_layer = PrometheusLayer {
+    service_name: "myapp".into(),
+    disk_mount_points: vec![PathBuf::from("/")],
+};
+router.layer(prometheus_layer);
+```
+
+```rust
 // Après (0.8)
 use api_tools::server::axum::layers::prometheus::{
     PrometheusLayer, spawn_system_metrics_collector,
 };
-use std::time::Duration;
 use std::path::PathBuf;
+use std::time::Duration;
 
-let layer = PrometheusLayer { service_name: "myapp".into() };
+let prometheus_layer = PrometheusLayer {
+    service_name: "myapp".into(),
+};
+router.layer(prometheus_layer);
 
-// Une seule fois, au boot de l'app :
+// Au boot de l'app, une seule fois (la tâche est indépendante du serveur HTTP) :
 let _collector = spawn_system_metrics_collector(
     "myapp".into(),
     vec![PathBuf::from("/")],
-    Duration::from_secs(10),
+    Duration::from_secs(10),  // intervalle de refresh
 );
 ```
 
-### Buckets d'histogramme custom (optionnel)
+Si tu veux pouvoir l'arrêter proprement au shutdown, garde le
+`JoinHandle<()>` retourné et appelle `.abort()`.
+
+### 3. Dashboards Grafana / requêtes PromQL — breaking
+
+Une seule metric a été renommée (correction de typo) :
+
+```diff
+- system_used_disks_usage{service="myapp"}
++ system_used_disks_space{service="myapp"}
+```
+
+Toutes les autres metrics gardent leur nom (`system_cpu_usage`,
+`system_total_memory`, `system_used_memory`, `system_total_swap`,
+`system_used_swap`, `system_total_disks_space`, `http_requests_total`,
+`http_requests_duration_seconds`).
+
+### 4. Buckets d'histogramme — optionnel, nouveau
+
+Si tu veux des buckets adaptés à un service très rapide (par défaut les
+buckets vont de 5 ms à 10 s) :
 
 ```rust
 use api_tools::server::axum::handlers::prometheus::{
@@ -108,9 +151,34 @@ let handle = PrometheusHandler::get_handle()?;
 
 // Buckets custom adaptés à un service très rapide :
 let handle = PrometheusHandler::get_handle_with_buckets(
-    &[0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5],
+    &[0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0],
 )?;
 ```
+
+L'appel `get_handle()` reste valide. La constante publique
+`DEFAULT_DURATION_BUCKETS` est exposée si tu veux partir des defaults et
+n'en modifier que quelques-uns.
+
+### 5. Variable `PROMETHEUS_ENABLE` côté `.env`
+
+Si tu l'avais mis à `0` pour contourner la latence, tu peux le repasser à
+`1` — il n'y a plus aucune raison fonctionnelle de désactiver Prometheus
+pour la performance.
+
+### Checklist de migration
+
+- [ ] Bump `api-tools` à `0.8.0` dans `Cargo.toml`.
+- [ ] Retirer `disk_mount_points: ...` de la construction de `PrometheusLayer`.
+- [ ] Ajouter un appel à `spawn_system_metrics_collector(...)` dans la
+      fonction de boot du serveur.
+- [ ] Chercher `system_used_disks_usage` dans les dashboards Grafana, les
+      alertes, et les requêtes PromQL — remplacer par
+      `system_used_disks_space`.
+- [ ] Réactiver `PROMETHEUS_ENABLE=1` (ou le retirer du `.env`) si désactivé.
+- [ ] `cargo build` pour valider.
+
+Aucun changement nécessaire sur les extracteurs, les autres layers, ou
+`PrometheusHandler::get_handle()`.
 
 ---
 
