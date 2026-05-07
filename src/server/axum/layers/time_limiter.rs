@@ -226,4 +226,85 @@ mod tests {
         let display = format!("{}", time_slots);
         assert_eq!(display, "");
     }
+
+    #[test]
+    fn timeslots_contains_at_exact_borders() {
+        let slots: TimeSlots = "08:00-12:00".into();
+        assert!(slots.contains("08:00"), "lower bound is inclusive");
+        assert!(slots.contains("12:00"), "upper bound is inclusive");
+        assert!(!slots.contains("07:59"));
+        assert!(!slots.contains("12:01"));
+    }
+
+    #[test]
+    fn timeslots_empty_never_contains() {
+        let slots: TimeSlots = "".into();
+        assert!(!slots.contains("00:00"));
+        assert!(!slots.contains("12:00"));
+        assert!(!slots.contains("23:59"));
+    }
+}
+
+#[cfg(test)]
+mod middleware_tests {
+    use super::*;
+    use axum::http::header;
+    use std::convert::Infallible;
+    use tower::{ServiceBuilder, ServiceExt};
+
+    fn ok_response() -> Response {
+        Response::builder().status(StatusCode::OK).body(Body::from("ok")).unwrap()
+    }
+
+    /// Empty time slots → `contains` is always false → `is_authorized` is
+    /// always true → the inner handler is invoked.
+    #[tokio::test]
+    async fn middleware_invokes_handler_when_no_slot_matches() {
+        let layer = TimeLimiterLayer::new(TimeSlots::from(""));
+        let svc = ServiceBuilder::new()
+            .layer(layer)
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(ok_response())
+            }));
+
+        let resp = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(&body[..], b"ok");
+    }
+
+    /// A slot covering the entire day always contains the current time, so
+    /// every request must be rejected with 503 + a JSON `ApiErrorResponse`.
+    /// This pins the deterministic branch without depending on the wall
+    /// clock.
+    #[tokio::test]
+    async fn middleware_returns_503_when_request_falls_inside_a_slot() {
+        let layer = TimeLimiterLayer::new(TimeSlots::from("00:00-23:59"));
+        let svc = ServiceBuilder::new()
+            .layer(layer)
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                // Should never be reached.
+                Ok::<_, Infallible>(ok_response())
+            }));
+
+        let resp = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json",
+        );
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        let body = std::str::from_utf8(&body).unwrap();
+        assert!(body.contains("\"code\":503"), "body was: {body}");
+        assert!(body.contains("Service unavailable"), "body was: {body}");
+    }
 }

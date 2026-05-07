@@ -87,4 +87,25 @@ mod tests {
         let token = AccessToken::extract_bearer_token_from_headers(&headers);
         assert!(token.is_none());
     }
+
+    #[tokio::test]
+    async fn from_request_parts_succeeds_when_bearer_header_is_present() {
+        let req = axum::http::Request::builder()
+            .header(header::AUTHORIZATION, "Bearer valid.jwt.token")
+            .body(())
+            .unwrap();
+        let (mut parts, _) = req.into_parts();
+
+        let token = AccessToken::from_request_parts(&mut parts, &()).await.unwrap();
+        assert_eq!(token.token, "valid.jwt.token");
+    }
+
+    #[tokio::test]
+    async fn from_request_parts_returns_unauthorized_when_header_is_missing() {
+        let req = axum::http::Request::builder().body(()).unwrap();
+        let (mut parts, _) = req.into_parts();
+
+        let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
+        assert!(matches!(err, ApiError::Unauthorized(_)));
+    }
 }

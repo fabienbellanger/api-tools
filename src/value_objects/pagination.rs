@@ -144,4 +144,44 @@ mod test {
         assert_eq!(pagination.limit(), PAGINATION_DEFAULT_LIMIT);
         assert_eq!(pagination.max_limit, None);
     }
+
+    #[test]
+    fn new_clamps_zero_page_to_one() {
+        let p = Pagination::new(0, 100, None);
+        assert_eq!(p.page(), 1);
+    }
+
+    #[test]
+    fn new_clamps_limit_below_min_to_pagination_min_limit() {
+        let p = Pagination::new(1, 1, None);
+        assert_eq!(p.limit(), PAGINATION_MIN_LIMIT);
+    }
+
+    #[test]
+    fn new_clamps_limit_above_max_to_pagination_max_limit() {
+        let p = Pagination::new(1, PAGINATION_MAX_LIMIT + 100, None);
+        assert_eq!(p.limit(), PAGINATION_MAX_LIMIT);
+    }
+
+    #[test]
+    fn new_caps_max_limit_argument_at_pagination_max_limit() {
+        // A custom max_limit greater than PAGINATION_MAX_LIMIT must itself be
+        // capped at PAGINATION_MAX_LIMIT before clamping the limit value.
+        let p = Pagination::new(1, 10_000, Some(10_000));
+        assert_eq!(p.limit(), PAGINATION_MAX_LIMIT);
+    }
+
+    #[test]
+    fn new_respects_a_smaller_custom_max_limit() {
+        let p = Pagination::new(1, 1_000, Some(100));
+        assert_eq!(p.limit(), 100);
+    }
+
+    #[test]
+    fn pagination_response_new_stores_all_fields() {
+        let r = PaginationResponse::new(2, 50, 1_234);
+        assert_eq!(r.page, 2);
+        assert_eq!(r.limit, 50);
+        assert_eq!(r.total, 1_234);
+    }
 }

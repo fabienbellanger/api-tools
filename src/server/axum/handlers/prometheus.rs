@@ -29,3 +29,39 @@ impl PrometheusHandler {
             .map_err(|err| ApiError::InternalServerError(err.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_duration_buckets_are_monotonically_increasing() {
+        assert!(!DEFAULT_DURATION_BUCKETS.is_empty());
+        for pair in DEFAULT_DURATION_BUCKETS.windows(2) {
+            assert!(pair[0] < pair[1], "buckets must be strictly increasing: {pair:?}");
+        }
+    }
+
+    /// Single combined test for the whole handler lifecycle. `install_recorder`
+    /// mutates a process-wide global, so we cannot run multiple tests against
+    /// it in parallel — tarpaulin / `cargo test` would race. Keeping the
+    /// scenario in one `#[test]` keeps the order deterministic without
+    /// pulling in `serial_test`.
+    #[test]
+    fn handler_install_recorder_lifecycle() {
+        // First successful install with custom buckets.
+        let handle = PrometheusHandler::get_handle_with_buckets(&[0.001, 0.01, 0.1])
+            .expect("first install should succeed");
+        // Sanity: rendering an empty registry yields a (possibly empty) string.
+        let _rendered = handle.render();
+
+        // Subsequent installs must fail because the global recorder is already
+        // set. Both flavours of the API exercise the same install path.
+        let err = PrometheusHandler::get_handle().expect_err("second install must fail");
+        assert!(matches!(err, ApiError::InternalServerError(_)));
+
+        let err = PrometheusHandler::get_handle_with_buckets(&[0.5, 1.0])
+            .expect_err("third install must fail");
+        assert!(matches!(err, ApiError::InternalServerError(_)));
+    }
+}

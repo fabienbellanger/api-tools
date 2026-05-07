@@ -386,6 +386,84 @@ mod tests {
     }
 
     #[test]
+    fn jwt_error_into_api_error_maps_to_internal_server_error() {
+        let api_err: ApiError = JwtError::ExpiredToken.into();
+        assert!(matches!(api_err, ApiError::InternalServerError(_)));
+        // The Display payload of the JwtError is preserved.
+        let ApiError::InternalServerError(msg) = api_err else { unreachable!() };
+        assert_eq!(msg, "Expired token");
+    }
+
+    #[test]
+    fn lifetime_getters_and_setters_round_trip() {
+        let mut jwt = Jwt::default();
+        assert_eq!(jwt.access_lifetime(), JWT_ACCESS_LIFETIME_IN_MINUTES);
+        assert_eq!(jwt.refresh_lifetime(), JWT_REFRESH_LIFETIME_IN_HOURS);
+
+        jwt.set_access_lifetime(30);
+        jwt.set_refresh_lifetime(48);
+        assert_eq!(jwt.access_lifetime(), 30);
+        assert_eq!(jwt.refresh_lifetime(), 48);
+    }
+
+    /// Walks every non-HMAC algorithm to exercise each PEM-loading match arm
+    /// in `set_encoding_key` / `set_decoding_key`. Each call must surface a
+    /// typed error rather than panicking on garbage input.
+    #[test]
+    fn set_encoding_and_decoding_keys_reject_invalid_pem_for_each_algorithm() {
+        for algo in [
+            Algorithm::ES256,
+            Algorithm::ES384,
+            Algorithm::RS256,
+            Algorithm::RS384,
+            Algorithm::RS512,
+            Algorithm::PS256,
+            Algorithm::PS384,
+            Algorithm::PS512,
+            Algorithm::EdDSA,
+        ] {
+            let mut jwt = Jwt {
+                algorithm: algo,
+                ..Default::default()
+            };
+            assert!(
+                matches!(
+                    jwt.set_encoding_key("not-a-real-pem").unwrap_err(),
+                    JwtError::EncodingKeyError(_),
+                ),
+                "set_encoding_key({algo:?}) should report EncodingKeyError",
+            );
+            assert!(
+                matches!(
+                    jwt.set_decoding_key("not-a-real-pem").unwrap_err(),
+                    JwtError::DecodingKeyError(_),
+                ),
+                "set_decoding_key({algo:?}) should report DecodingKeyError",
+            );
+        }
+    }
+
+    #[test]
+    fn init_es256_with_invalid_private_key_fails_at_encoding_stage() {
+        // Drives the `(_, Some(private_key), false)` arm of the encoding-key
+        // match; the inner `set_encoding_key` then surfaces the PEM error.
+        let err = Jwt::init("ES256", 15, 7 * 24, None, Some("not-a-pem"), None).unwrap_err();
+        assert!(matches!(err, JwtError::EncodingKeyError(_)));
+    }
+
+    #[test]
+    fn parse_without_decoding_key_returns_decoding_error() {
+        // `Jwt::default()` has no decoding key; parse must fail cleanly.
+        let jwt = Jwt::default();
+        let dummy = AccessToken {
+            token: "irrelevant".to_string(),
+            expired_at: UtcDateTime::now(),
+        };
+        let err = jwt.parse::<TestClaims>(&dummy).unwrap_err();
+        assert!(matches!(err, JwtError::DecodingKeyError(_)));
+    }
+
+    #[test]
     fn test_jwt_parse_with_wrong_secret_fails() {
         let issuer = Jwt::init("HS256", 15, 7 * 24, Some("secret-A"), None, None).expect("init");
         let verifier = Jwt::init("HS256", 15, 7 * 24, Some("secret-B"), None, None).expect("init");

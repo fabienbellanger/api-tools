@@ -95,3 +95,205 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::header;
+    use std::convert::Infallible;
+    use tower::{ServiceBuilder, ServiceExt};
+
+    fn layer() -> HttpErrorsLayer {
+        HttpErrorsLayer::new(&HttpErrorsConfig { body_max_size: 1024 })
+    }
+
+    async fn read_body(response: Response) -> String {
+        let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+        String::from_utf8(body.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn ok_response_passes_through_unchanged() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .body(Body::from("hello"))
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(read_body(response).await, "hello");
+    }
+
+    #[tokio::test]
+    async fn empty_404_is_rewritten_as_json_api_error() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/missing").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json",
+        );
+
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":404"), "body was: {body}");
+        assert!(body.contains("Resource Not Found"), "body was: {body}");
+    }
+
+    /// 404 with a non-empty body must be left untouched — the inner service
+    /// already provided a response body.
+    #[tokio::test]
+    async fn non_empty_404_is_passed_through() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .body(Body::from("custom 404"))
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(read_body(response).await, "custom 404");
+    }
+
+    #[tokio::test]
+    async fn method_not_allowed_is_rewritten_as_json_api_error() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::METHOD_NOT_ALLOWED)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json",
+        );
+
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":405"), "body was: {body}");
+        assert!(body.contains("Method not allowed"), "body was: {body}");
+    }
+
+    #[tokio::test]
+    async fn unprocessable_entity_body_is_wrapped_into_json_message() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::UNPROCESSABLE_ENTITY)
+                        .body(Body::from("validation failed"))
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":422"), "body was: {body}");
+        assert!(body.contains("validation failed"), "body was: {body}");
+    }
+
+    /// Binary content-types (image/audio/video) must short-circuit before any
+    /// body reading: rewriting them as JSON would corrupt the payload.
+    #[tokio::test]
+    async fn image_content_type_short_circuits_without_touching_body() {
+        let payload = vec![0u8, 1, 2, 3, 4];
+        let payload_clone = payload.clone();
+
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(move |_req: Request<Body>| {
+                let payload = payload_clone.clone();
+                async move {
+                    Ok::<_, Infallible>(
+                        Response::builder()
+                            .status(StatusCode::NOT_FOUND)
+                            .header(header::CONTENT_TYPE, "image/png")
+                            .body(Body::from(payload))
+                            .unwrap(),
+                    )
+                }
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+        assert_eq!(body.to_vec(), payload);
+    }
+
+    #[tokio::test]
+    async fn body_exceeding_max_size_returns_payload_too_large() {
+        let small_layer = HttpErrorsLayer::new(&HttpErrorsConfig { body_max_size: 4 });
+        let svc = ServiceBuilder::new()
+            .layer(small_layer)
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .body(Body::from("hello world"))
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":413"), "body was: {body}");
+    }
+}

@@ -122,6 +122,94 @@ mod tests {
             .unwrap())
     }
 
+    fn auth_header(value: &str) -> String {
+        format!("Basic {}", general_purpose::STANDARD.encode(value))
+    }
+
+    fn make_service(
+        username: &str,
+        password: &str,
+    ) -> impl tower::Service<Request<Body>, Response = Response, Error = Infallible> + Clone {
+        BasicAuthLayer::new(username, password).layer(tower::service_fn(dummy_service))
+    }
+
+    #[tokio::test]
+    async fn missing_authorization_header_returns_401_with_json_body() {
+        let svc = make_service("user", "pass");
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        // Layer attaches WWW-Authenticate per RFC 7235.
+        assert_eq!(
+            resp.headers().get(header::WWW_AUTHENTICATE).unwrap(),
+            "basic realm=RESTRICTED",
+        );
+        // body_from_parts forces a JSON ApiErrorResponse body.
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json",
+        );
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        let body = std::str::from_utf8(&body).unwrap();
+        assert!(body.contains("\"code\":401"), "body was: {body}");
+    }
+
+    #[tokio::test]
+    async fn non_basic_authorization_scheme_returns_401() {
+        let svc = make_service("user", "pass");
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, "Bearer some.jwt.token")
+            .body(Body::empty())
+            .unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn invalid_base64_in_basic_header_returns_401_without_panic() {
+        let svc = make_service("user", "pass");
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, "Basic !!!not-base64!!!")
+            .body(Body::empty())
+            .unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn correct_credentials_invoke_inner_handler() {
+        let svc = make_service("user", "pass");
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, auth_header("user:pass"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(&body[..], b"ok");
+    }
+
+    #[tokio::test]
+    async fn matching_user_with_wrong_password_returns_401() {
+        let svc = make_service("user", "pass");
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, auth_header("user:wrong"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
     #[tokio::test]
     async fn test_basic_auth_layer() {
         let username = "user";

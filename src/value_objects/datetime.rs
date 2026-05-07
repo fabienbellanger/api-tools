@@ -125,6 +125,24 @@ mod test {
     }
 
     #[test]
+    fn new_wraps_existing_chrono_datetime() {
+        let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let datetime = UtcDateTime::new(dt);
+        assert_eq!(datetime.value(), dt);
+    }
+
+    #[test]
+    fn now_returns_a_value_between_before_and_after_calls() {
+        let before = Utc::now();
+        let dt = UtcDateTime::now();
+        let after = Utc::now();
+        assert!(dt.value() >= before);
+        assert!(dt.value() <= after);
+    }
+
+    #[test]
     fn test_add() {
         let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
             .unwrap()

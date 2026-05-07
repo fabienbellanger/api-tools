@@ -137,7 +137,100 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::Infallible;
     use std::time::Duration;
+    use tower::{ServiceBuilder, ServiceExt};
+
+    fn make_svc(
+        status: StatusCode,
+    ) -> impl tower::Service<
+        Request<Body>,
+        Response = Response,
+        Error = Infallible,
+        Future = impl std::future::Future<Output = Result<Response, Infallible>> + Send,
+    > + Clone
+    + Send
+    + 'static {
+        let layer = LoggerLayer;
+        ServiceBuilder::new()
+            .layer(layer)
+            .service(tower::service_fn(move |_req: Request<Body>| async move {
+                Ok::<_, Infallible>(Response::builder().status(status).body(Body::from("ok")).unwrap())
+            }))
+    }
+
+    #[tokio::test]
+    async fn middleware_passes_through_2xx_response() {
+        let svc = make_svc(StatusCode::OK);
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/foo")
+            .header("host", "localhost")
+            .header("user-agent", "test/1.0")
+            .header("x-request-id", "abc")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = svc.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(&body[..], b"ok");
+    }
+
+    #[tokio::test]
+    async fn middleware_passes_through_5xx_response() {
+        // 5xx (except 503) takes the ERROR-level branch.
+        let svc = make_svc(StatusCode::INTERNAL_SERVER_ERROR);
+        let req = Request::builder().uri("/boom").body(Body::empty()).unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    /// SERVICE_UNAVAILABLE is the only 5xx still logged at info level — it is
+    /// the legitimate "outside time slot" response from `time_limiter`, not a
+    /// real failure.
+    #[tokio::test]
+    async fn middleware_treats_503_as_info_branch() {
+        let svc = make_svc(StatusCode::SERVICE_UNAVAILABLE);
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    /// Sentinel: an OPTIONS request must short-circuit the logger before any
+    /// status/latency computation. Pins the regression added in commit
+    /// 76f81c7.
+    #[tokio::test]
+    async fn middleware_short_circuits_on_options_method() {
+        let svc = make_svc(StatusCode::NO_CONTENT);
+        let req = Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/foo")
+            .body(Body::empty())
+            .unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
+
+    /// `/metrics` requests are passed through but skip the info log to avoid
+    /// a feedback loop with the Prometheus scraper.
+    #[tokio::test]
+    async fn middleware_passes_through_metrics_path() {
+        let svc = make_svc(StatusCode::OK);
+        let req = Request::builder().uri("/metrics").body(Body::empty()).unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    /// Missing optional headers (host, user-agent, x-request-id) must default
+    /// to empty strings without panicking.
+    #[tokio::test]
+    async fn middleware_handles_missing_optional_headers() {
+        let svc = make_svc(StatusCode::OK);
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
 
     #[test]
     fn test_logger_message_fmt() {
