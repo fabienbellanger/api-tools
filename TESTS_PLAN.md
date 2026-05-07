@@ -17,10 +17,10 @@ les tests à écrire, et la difficulté.
 17 tests ajoutés sur les trois modules. Couverture par module après
 exécution :
 
-| Module | Avant | Après |
-|--------|-------|-------|
-| `server/axum/extractors.rs` | 0/36 (0 %) | 16/36 (44 %) |
-| `server/axum/layers/http_errors.rs` | 0/29 (0 %) | 22/29 (76 %) |
+| Module                                   | Avant      | Après        |
+| ---------------------------------------- | ---------- | ------------ |
+| `server/axum/extractors.rs`              | 0/36 (0 %) | 16/36 (44 %) |
+| `server/axum/layers/http_errors.rs`      | 0/29 (0 %) | 22/29 (76 %) |
 | `server/axum/layers/security_headers.rs` | 0/27 (0 %) | 18/27 (67 %) |
 
 Lignes restantes :
@@ -54,11 +54,11 @@ Lignes restantes :
 
 12 tests ajoutés sur les trois modules. Couverture par module :
 
-| Module | Avant | Après |
-|--------|-------|-------|
-| `server/axum/layers/cors.rs` | 0/15 (0 %) | 14/14 (100 %) |
-| `server/axum/layers/logger.rs` | 4/44 (9 %) | 24/44 (55 %) |
-| `server/axum/handlers/prometheus.rs` | 0/7 (0 %) | 7/7 (100 %) |
+| Module                               | Avant      | Après         |
+| ------------------------------------ | ---------- | ------------- |
+| `server/axum/layers/cors.rs`         | 0/15 (0 %) | 14/14 (100 %) |
+| `server/axum/layers/logger.rs`       | 4/44 (9 %) | 24/44 (55 %)  |
+| `server/axum/handlers/prometheus.rs` | 0/7 (0 %)  | 7/7 (100 %)   |
 
 Lignes restantes dans `logger.rs` (98, 102-105, 107-119, 124, 132) : ce
 sont essentiellement la définition du `macro_rules! log_request!` et les
@@ -95,11 +95,11 @@ avec `serial_test` ne s'imposera que si un autre site appelle plus tard
 
 15 tests ajoutés sur les trois modules. Couverture par module :
 
-| Module | Avant | Après |
-|--------|-------|-------|
-| `value_objects/pagination.rs` | 18/23 (78 %) | 22/23 (96 %) |
-| `server/axum/layers/basic_auth.rs` | 26/36 (72 %) | 26/36 (72 %)¹ |
-| `server/axum/layers/time_limiter.rs` | 19/44 (43 %) | 36/44 (82 %) |
+| Module                               | Avant        | Après         |
+| ------------------------------------ | ------------ | ------------- |
+| `value_objects/pagination.rs`        | 18/23 (78 %) | 22/23 (96 %)  |
+| `server/axum/layers/basic_auth.rs`   | 26/36 (72 %) | 26/36 (72 %)¹ |
+| `server/axum/layers/time_limiter.rs` | 19/44 (43 %) | 36/44 (82 %)  |
 
 ¹ `basic_auth.rs` reste à 72 % côté tarpaulin malgré 5 nouveaux tests qui
 exercent toutes les branches : les lignes restantes (86, 88-94, 97, 101)
@@ -111,7 +111,7 @@ comportement.
 Lignes restantes :
 
 - **pagination.rs** : ligne 94 (branche `PAGINATION_DEFAULT_LIMIT >
-  PAGINATION_MAX_LIMIT` dans `Default::default()`) — code inatteignable
+PAGINATION_MAX_LIMIT` dans `Default::default()`) — code inatteignable
   tant que `200 < 500`. À noter comme dead code potentiel.
 - **time_limiter.rs** : 170, 172-176, 178, 182 — corps `async move` du
   middleware (faux négatif tarpaulin).
@@ -136,11 +136,11 @@ Lignes restantes :
 
 9 tests ajoutés sur les trois modules.
 
-| Module | Avant | Après |
-|--------|-------|-------|
-| `value_objects/datetime.rs` | 14/15 (93 %) | 15/15 (100 %) |
-| `server/axum/security/jwt/access_token.rs` | 9/12 (75 %) | 12/12 (100 %) |
-| `server/axum/security/jwt/mod.rs` | 40/73 (55 %) | 68/73 (93 %) |
+| Module                                     | Avant        | Après         |
+| ------------------------------------------ | ------------ | ------------- |
+| `value_objects/datetime.rs`                | 14/15 (93 %) | 15/15 (100 %) |
+| `server/axum/security/jwt/access_token.rs` | 9/12 (75 %)  | 12/12 (100 %) |
+| `server/axum/security/jwt/mod.rs`          | 40/73 (55 %) | 68/73 (93 %)  |
 
 Lignes restantes dans `jwt/mod.rs` (117-118, 189, 191, 208) :
 
@@ -169,11 +169,11 @@ Lignes restantes dans `jwt/mod.rs` (117-118, 189, 191, 208) :
 
 ## Estimation globale
 
-| Tier | Modules | Lignes couvrables | Difficulté |
-|------|---------|-------------------|------------|
-| P0 | extractors, http_errors, security_headers | ~86 | facile/moyenne |
-| P1 | cors, logger, handlers/prometheus | ~62 | moyenne |
-| P2 | time_limiter, basic_auth, pagination | ~40 | facile |
+| Tier | Modules                                   | Lignes couvrables | Difficulté     |
+| ---- | ----------------------------------------- | ----------------- | -------------- |
+| P0   | extractors, http_errors, security_headers | ~86               | facile/moyenne |
+| P1   | cors, logger, handlers/prometheus         | ~62               | moyenne        |
+| P2   | time_limiter, basic_auth, pagination      | ~40               | facile         |
 
 P0 livré : **56.88 % → 67.16 %** (+56 lignes).
 P1 livré : **67.16 % → 74.82 %** (+41 lignes).
@@ -206,5 +206,5 @@ de refactorer les middlewares pour extraire la logique du closure async.
    et le futur « OPTIONS-no-log » pour Logger) qui verrouille un
    comportement non-évident.
 5. **Validation** : `cargo test --all-features && cargo clippy --all-features
-   --all-targets -- -D warnings && cargo tarpaulin --all-features` avant
+--all-targets -- -D warnings && cargo tarpaulin --all-features` avant
    chaque merge.

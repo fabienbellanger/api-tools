@@ -186,10 +186,10 @@ Aucun changement nécessaire sur les extracteurs, les autres layers, ou
 
 ### Breaking changes
 
-| Avant | Après |
-|---|---|
+| Avant                                                 | Après                              |
+| ----------------------------------------------------- | ---------------------------------- |
 | `PrometheusLayer { service_name, disk_mount_points }` | `PrometheusLayer { service_name }` |
-| metric `system_used_disks_usage` | metric `system_used_disks_space` |
+| metric `system_used_disks_usage`                      | metric `system_used_disks_space`   |
 
 ### Nouvelles API publiques
 
@@ -234,9 +234,9 @@ Run : `cargo test --all-features` → **44 tests OK + 8 doctests OK**.
 Mesure côté ApiRoad attendue après upgrade vers `api-tools 0.8.0` :
 
 - `GET /health` avec `PROMETHEUS_ENABLE=1` :
-  - **Avant** : ~210 ms (Docker ou natif)
-  - **Après** : devrait s'aligner sur la latence avec Prometheus désactivé
-    (~2-3 ms), soit **×80 à ×100**.
+    - **Avant** : ~210 ms (Docker ou natif)
+    - **Après** : devrait s'aligner sur la latence avec Prometheus désactivé
+      (~2-3 ms), soit **×80 à ×100**.
 
 Il n'y aura **plus aucune raison fonctionnelle** de désactiver Prometheus
 pour la performance. La variable `PROMETHEUS_ENABLE=0` peut être supprimée
