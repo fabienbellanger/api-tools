@@ -105,7 +105,13 @@ cargo add api-tools -F full
 
 ## Code coverage
 
-- [2026-05-07] `84.56% coverage, 460/544 lines covered`
+Run :
+
+```bash
+cargo tarpaulin --all-features --ignore-tests --line --count --include-files "src/**/*" --out Html
+```
+
+> [2026-06-16] `93.03% coverage, 534/574 lines covered`
 
 ## To-Do list
 
