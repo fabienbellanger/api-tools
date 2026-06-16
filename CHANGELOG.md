@@ -18,7 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.8.0` (2026-05-07) [CURRENT]
+## `0.9.0` (2026-06-16) [CURRENT]
+
+### Changed
+
+- [BREAKING] Bump `tower-http` from `0.6` to `0.7`. Since `cors()` returns a
+  `tower_http::cors::CorsLayer` and `MakeRequestUuid` implements `tower_http::request_id::MakeRequestId`,
+  downstream crates must upgrade their own `tower-http` to `0.7` as well.
+- Reduce the enabled `tower-http` features to only those actually used (`cors`,
+  `request-id`); the unused `fs`, `util`, and `set-header` features are no longer pulled in,
+  shrinking the dependency footprint.
+- Update other dependencies (`tokio`, `jsonwebtoken`, `opentelemetry`,
+  `tracing-opentelemetry`, `hyper`, `chrono`, `uuid`, `serde_json`, `metrics`, `bytesize`).
+
+## `0.8.0` (2026-05-07)
 
 ### Fixed
 
