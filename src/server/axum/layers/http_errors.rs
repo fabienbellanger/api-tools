@@ -78,19 +78,33 @@ where
             }
 
             let (parts, body) = response.into_parts();
-            match axum::body::to_bytes(body, config.body_max_size).await {
-                Ok(body) => match String::from_utf8(body.to_vec()) {
-                    Ok(body) => match parts.status {
-                        StatusCode::METHOD_NOT_ALLOWED => Ok(ApiError::MethodNotAllowed.into_response()),
-                        StatusCode::UNPROCESSABLE_ENTITY => Ok(ApiError::UnprocessableEntity(body).into_response()),
-                        StatusCode::NOT_FOUND if body.is_empty() => {
-                            Ok(ApiError::NotFound("Resource Not Found".to_owned()).into_response())
-                        }
-                        _ => Ok(Response::from_parts(parts, Body::from(body))),
-                    },
-                    Err(err) => Ok(ApiError::InternalServerError(err.to_string()).into_response()),
-                },
-                Err(_) => Ok(ApiError::PayloadTooLarge.into_response()),
+
+            // Only 404/405/422 are rewritten. Every other status (notably the 200s that make up
+            // the bulk of the traffic) is returned untouched, without buffering: this preserves
+            // streaming and avoids a full-body copy + UTF-8 scan, plus the spurious 413 a legitimate
+            // large body used to trigger by overflowing `to_bytes`.
+            match parts.status {
+                // The 405 body is discarded, so there is no need to read it.
+                StatusCode::METHOD_NOT_ALLOWED => Ok(ApiError::MethodNotAllowed.into_response()),
+                // 422/404 are the only statuses whose body we still need to inspect.
+                StatusCode::UNPROCESSABLE_ENTITY | StatusCode::NOT_FOUND => {
+                    match axum::body::to_bytes(body, config.body_max_size).await {
+                        Ok(bytes) => match String::from_utf8(bytes.to_vec()) {
+                            Ok(body) => match parts.status {
+                                StatusCode::UNPROCESSABLE_ENTITY => {
+                                    Ok(ApiError::UnprocessableEntity(body).into_response())
+                                }
+                                StatusCode::NOT_FOUND if body.is_empty() => {
+                                    Ok(ApiError::NotFound("Resource Not Found".to_owned()).into_response())
+                                }
+                                _ => Ok(Response::from_parts(parts, Body::from(body))),
+                            },
+                            Err(err) => Ok(ApiError::InternalServerError(err.to_string()).into_response()),
+                        },
+                        Err(_) => Ok(ApiError::PayloadTooLarge.into_response()),
+                    }
+                }
+                _ => Ok(Response::from_parts(parts, body)),
             }
         })
     }
@@ -273,8 +287,37 @@ mod tests {
         assert_eq!(body.to_vec(), payload);
     }
 
+    /// The size limit is still enforced on the statuses whose body is actually
+    /// read (`422`): an oversized body there is turned into a `413`.
     #[tokio::test]
-    async fn body_exceeding_max_size_returns_payload_too_large() {
+    async fn unprocessable_entity_over_limit_still_413() {
+        let small_layer = HttpErrorsLayer::new(&HttpErrorsConfig { body_max_size: 4 });
+        let svc = ServiceBuilder::new()
+            .layer(small_layer)
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::UNPROCESSABLE_ENTITY)
+                        .body(Body::from("validation failed for many fields"))
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":413"), "body was: {body}");
+    }
+
+    /// A `200 OK` whose body exceeds `body_max_size` must pass through untouched:
+    /// the body is never buffered for passthrough statuses, so it can no longer
+    /// be turned into a spurious `413`.
+    #[tokio::test]
+    async fn large_ok_body_is_not_truncated_to_413() {
         let small_layer = HttpErrorsLayer::new(&HttpErrorsConfig { body_max_size: 4 });
         let svc = ServiceBuilder::new()
             .layer(small_layer)
@@ -292,8 +335,31 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
-        let body = read_body(response).await;
-        assert!(body.contains("\"code\":413"), "body was: {body}");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(read_body(response).await, "hello world");
+    }
+
+    /// A non-rewritten status (`500`) carrying a body must be returned
+    /// unchanged, without being buffered.
+    #[tokio::test]
+    async fn passthrough_status_body_is_not_buffered() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::from("upstream failure"))
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(read_body(response).await, "upstream failure");
     }
 }

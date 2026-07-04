@@ -1,6 +1,6 @@
 # Plan — `HttpErrorsLayer` : early-return avant bufferisation
 
-> Statut : **proposé** (non implémenté). Origine : audit backend apiroad, item **H2**.
+> Statut : **implémenté** (v0.9.1). Origine : audit backend apiroad, item **H2**.
 
 ## Problème
 

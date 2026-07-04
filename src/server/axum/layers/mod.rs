@@ -1,6 +1,7 @@
 //! Axum layers
 
 pub mod basic_auth;
+pub mod body_limiter;
 pub mod cors;
 pub mod http_errors;
 pub mod logger;

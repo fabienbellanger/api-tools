@@ -18,7 +18,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.9.0` (2026-06-16) [CURRENT]
+## `0.9.1` (2026-07-04) [CURRENT]
+
+### Added
+
+- `server::axum::layers::body_limiter::BodyLimiterLayer` — a reusable tower
+  layer that rejects incoming requests whose `Content-Length` exceeds a
+  configured maximum, before the body is read, with a JSON `413 Payload Too
+  Large`. The check is O(1) and preserves streaming; requests without a
+  `Content-Length` are not capped by this layer.
+- `server::axum::layers::body_limiter::RequestBodyLimitLayer` — re-export of
+  `tower_http::limit::RequestBodyLimitLayer` (the `limit` feature of `tower-http`
+  is now enabled). Stack it under `BodyLimiterLayer` for a hard cap that also
+  covers chunked bodies without a `Content-Length`; see the module docs for the
+  two-layer example.
+
+### Fixed
+
+- `HttpErrorsLayer` no longer buffers the response body for statuses it does not
+  rewrite. The status is now matched first, so only `422`/`404` responses have
+  their body read; `200 OK` (the bulk of the traffic), `405`, `500`, `3xx`, etc.
+  pass through without a full-body copy + UTF-8 scan, preserving streaming.
+- A legitimate large body on a passthrough status (e.g. `200 OK`) is no longer
+  turned into a spurious `413 Payload Too Large`. The `body_max_size` limit is
+  still enforced on `422`/`404`, where the body is actually read.
+
+## `0.9.0` (2026-06-16)
 
 ### Changed
 

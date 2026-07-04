@@ -36,11 +36,11 @@ make doc                # cargo doc --open --no-deps --all-features
 
 ## Feature Flags
 
-| Feature      | Enables                                               |
-| ------------ | ----------------------------------------------------- |
-| `axum`       | Everything under `server::axum::*`                    |
-| `prometheus` | `metrics`, `metrics-exporter-prometheus`, `sysinfo`   |
-| `full`       | `axum` + `prometheus`                                 |
+| Feature      | Enables                                             |
+| ------------ | --------------------------------------------------- |
+| `axum`       | Everything under `server::axum::*`                  |
+| `prometheus` | `metrics`, `metrics-exporter-prometheus`, `sysinfo` |
+| `full`       | `axum` + `prometheus`                               |
 
 `default = []` — the bare crate compiles with only the value objects. New optional integrations
 should be gated behind a feature, not added to the default set.
@@ -71,6 +71,29 @@ caller:
 
 `PrometheusHandler::get_handle()` installs the global recorder with default histogram buckets;
 `get_handle_with_buckets(&[f64])` lets callers override them for low-latency services.
+
+### `HttpErrorsLayer` — status matched before buffering (since 0.9.1)
+
+`server::axum::layers::http_errors` matches `parts.status` **first** and only buffers the body for
+the statuses it actually rewrites (`422`, `404`). `405` is rewritten without reading its (discarded)
+body; every other status — notably the `200`s that make up the bulk of the traffic — is a pure
+passthrough with no full-body copy or UTF-8 scan, which preserves streaming. Consequence: a
+legitimate large body on a passthrough status is no longer turned into a spurious `413` (the
+`body_max_size` limit only applies where the body is read, i.e. `422`/`404`). Do **not** reintroduce
+a blanket `to_bytes` before the status match — a sentinel-free regression there would re-add the copy
+and the false `413`.
+
+### `BodyLimiterLayer` — two-layer request size cap (since 0.9.1)
+
+`server::axum::layers::body_limiter` caps **incoming request** size. It is deliberately split so
+callers can compose the level of guarantee they need:
+
+1. **`BodyLimiterLayer`** — checks the `Content-Length` header and rejects early with a JSON `413`
+   (`ApiError::PayloadTooLarge`), without reading the body. O(1), streaming-preserving, but blind to
+   chunked requests that omit `Content-Length`.
+2. **`RequestBodyLimitLayer`** — re-export of `tower_http::limit::RequestBodyLimitLayer` (the `limit`
+   feature of `tower-http` is enabled). Stack it **under** `BodyLimiterLayer` for a hard cap that
+   also covers chunked bodies (enforced as the body is read; tower-http's plain `413`).
 
 ## Testing Conventions
 
