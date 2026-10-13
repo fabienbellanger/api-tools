@@ -20,8 +20,8 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         match parts.headers.get(REQUEST_ID_HEADER.clone()) {
-            Some(id) => Ok(RequestId(id.clone())),
-            _ => Ok(RequestId(HeaderValue::from_static(""))),
+            Some(id) => Ok(Self(id.clone())),
+            _ => Ok(Self(HeaderValue::from_static(""))),
         }
     }
 }
@@ -54,12 +54,12 @@ fn path_rejection_to_api_error(rejection: PathRejection) -> (StatusCode, ApiErro
 
             let kind = inner.into_kind();
             let body = match &kind {
-                ErrorKind::WrongNumberOfParameters { .. } => ApiError::BadRequest(kind.to_string()),
-                ErrorKind::ParseErrorAtKey { .. } => ApiError::BadRequest(kind.to_string()),
-                ErrorKind::ParseErrorAtIndex { .. } => ApiError::BadRequest(kind.to_string()),
-                ErrorKind::ParseError { .. } => ApiError::BadRequest(kind.to_string()),
-                ErrorKind::InvalidUtf8InPathParam { .. } => ApiError::BadRequest(kind.to_string()),
-                ErrorKind::DeserializeError { .. } => ApiError::BadRequest(kind.to_string()),
+                ErrorKind::WrongNumberOfParameters { .. }
+                | ErrorKind::ParseErrorAtKey { .. }
+                | ErrorKind::ParseErrorAtIndex { .. }
+                | ErrorKind::ParseError { .. }
+                | ErrorKind::InvalidUtf8InPathParam { .. }
+                | ErrorKind::DeserializeError { .. } => ApiError::BadRequest(kind.to_string()),
                 ErrorKind::UnsupportedType { .. } => {
                     // this error is caused by the programmer using an unsupported type
                     // (such as nested maps) so respond with `500` instead
@@ -98,7 +98,7 @@ where
         let value = serde_urlencoded::from_str(query)
             .map_err(|err| (StatusCode::BAD_REQUEST, ApiError::BadRequest(err.to_string())))?;
 
-        Ok(Query(value))
+        Ok(Self(value))
     }
 }
 
@@ -312,7 +312,7 @@ mod tests {
     async fn path_extractor_returns_400_with_custom_deserialize_message() {
         #[derive(Deserialize)]
         #[serde(try_from = "String")]
-        struct Slug(#[allow(dead_code)] String);
+        struct Slug(#[allow(dead_code, reason = "only built to exercise validation")] String);
 
         impl TryFrom<String> for Slug {
             type Error = String;
@@ -375,7 +375,7 @@ mod tests {
     /// programmer error, reported as a 500.
     #[tokio::test]
     async fn path_extractor_returns_500_when_used_outside_a_router() {
-        let (mut parts, _) = Request::builder().uri("/users/1").body(()).unwrap().into_parts();
+        let (mut parts, ()) = Request::builder().uri("/users/1").body(()).unwrap().into_parts();
 
         let Err((status, error)) = Path::<u64>::from_request_parts(&mut parts, &()).await else {
             panic!("extraction must fail without path params");
@@ -463,13 +463,13 @@ mod tests {
     async fn path_extractor_returns_400_on_custom_deserialize_error_at_key() {
         #[derive(Deserialize)]
         #[serde(try_from = "u64")]
-        struct Even(#[allow(dead_code)] u64);
+        struct Even(#[allow(dead_code, reason = "only built to exercise validation")] u64);
 
         impl TryFrom<u64> for Even {
             type Error = String;
 
             fn try_from(value: u64) -> Result<Self, Self::Error> {
-                if value % 2 == 0 {
+                if value.is_multiple_of(2) {
                     Ok(Self(value))
                 } else {
                     Err("must be even".to_string())
@@ -479,7 +479,7 @@ mod tests {
 
         #[derive(Deserialize)]
         struct Params {
-            #[allow(dead_code)]
+            #[allow(dead_code, reason = "only deserialized to exercise validation")]
             id: Even,
         }
 
@@ -535,7 +535,7 @@ mod tests {
 
         #[derive(Deserialize)]
         struct Params {
-            #[allow(dead_code)]
+            #[allow(dead_code, reason = "only deserialized to exercise validation")]
             slug: Lowercase,
         }
 

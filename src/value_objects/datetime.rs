@@ -7,8 +7,9 @@ use std::ops::Add;
 use thiserror::Error;
 
 /// UTC Datetime possible errors
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum UtcDateTimeError {
+    /// The input is not a valid RFC3339 date time
     #[error("Invalid date time: {0}")]
     InvalidDateTime(String),
 }
@@ -21,12 +22,14 @@ pub struct UtcDateTime {
 
 impl UtcDateTime {
     /// Create a new date time for now
+    #[must_use]
     pub fn now() -> Self {
         Self { value: Utc::now() }
     }
 
     /// Create a new date time
-    pub fn new(value: DateTime<Utc>) -> Self {
+    #[must_use]
+    pub const fn new(value: DateTime<Utc>) -> Self {
         Self { value }
     }
 
@@ -41,6 +44,10 @@ impl UtcDateTime {
     ///
     /// let invalid_datetime = UtcDateTime::from_rfc3339("2024-08-T12:00:00Z");
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UtcDateTimeError::InvalidDateTime`] if `value` is not a valid RFC3339 date time.
     pub fn from_rfc3339(value: &str) -> Result<Self, UtcDateTimeError> {
         let dt = DateTime::parse_from_rfc3339(value)
             .map_err(|e| UtcDateTimeError::InvalidDateTime(format!("{e}: {value}")))?;
@@ -51,16 +58,19 @@ impl UtcDateTime {
     }
 
     /// Get timestamp value
-    pub fn timestamp(&self) -> i64 {
+    #[must_use]
+    pub const fn timestamp(&self) -> i64 {
         self.value.timestamp()
     }
 
     /// Get date time value
-    pub fn value(&self) -> DateTime<Utc> {
+    #[must_use]
+    pub const fn value(&self) -> DateTime<Utc> {
         self.value
     }
 
     /// Create a new date time from a timestamp
+    #[must_use]
     pub fn add(&self, rhs: TimeDelta) -> Self {
         Self {
             value: self.value.add(rhs),
@@ -121,7 +131,7 @@ mod test {
             .with_timezone(&Utc);
         let datetime = UtcDateTime::from(dt);
 
-        assert_eq!(datetime.timestamp(), 1724846400);
+        assert_eq!(datetime.timestamp(), 1_724_846_400);
     }
 
     #[test]

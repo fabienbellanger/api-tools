@@ -9,7 +9,7 @@ use serde::Deserialize;
 pub type AccessTokenValue = String;
 
 /// Access Token
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct AccessToken {
     /// Token
     pub token: AccessTokenValue,
@@ -34,7 +34,8 @@ impl AccessToken {
     /// assert_eq!(access_token.token, "my_access_token".to_string());
     /// assert_eq!(access_token.expired_at, expired_at);
     /// ```
-    pub fn new(token: String, expired_at: UtcDateTime) -> Self {
+    #[must_use]
+    pub const fn new(token: String, expired_at: UtcDateTime) -> Self {
         Self { token, expired_at }
     }
 
@@ -50,7 +51,7 @@ impl AccessToken {
             .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
             .map(|(_, token)| token.trim())
             .filter(|token| !token.is_empty())
-            .map(|token| AccessToken::new(token.to_string(), UtcDateTime::now()))
+            .map(|token| Self::new(token.to_string(), UtcDateTime::now()))
     }
 }
 
@@ -63,7 +64,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         Self::extract_bearer_token_from_headers(&parts.headers)
-            .ok_or(ApiError::Unauthorized("Missing or invalid token".to_string()))
+            .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".to_string()))
     }
 }
 
@@ -97,7 +98,7 @@ mod tests {
             .header(header::AUTHORIZATION, "Bearer valid.jwt.token")
             .body(())
             .unwrap();
-        let (mut parts, _) = req.into_parts();
+        let (mut parts, ()) = req.into_parts();
 
         let token = AccessToken::from_request_parts(&mut parts, &()).await.unwrap();
         assert_eq!(token.token, "valid.jwt.token");
@@ -106,7 +107,7 @@ mod tests {
     #[tokio::test]
     async fn from_request_parts_returns_unauthorized_when_header_is_missing() {
         let req = axum::http::Request::builder().body(()).unwrap();
-        let (mut parts, _) = req.into_parts();
+        let (mut parts, ()) = req.into_parts();
 
         let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
         assert!(matches!(err, ApiError::Unauthorized(_)));
@@ -146,7 +147,7 @@ mod tests {
             .header(header::AUTHORIZATION, "Basic dXNlcjpwYXNz")
             .body(())
             .unwrap();
-        let (mut parts, _) = req.into_parts();
+        let (mut parts, ()) = req.into_parts();
 
         let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
         assert_eq!(err, ApiError::Unauthorized("Missing or invalid token".to_string()));
@@ -198,7 +199,7 @@ mod tests {
             .header(header::AUTHORIZATION, "Bearer ")
             .body(())
             .unwrap();
-        let (mut parts, _) = req.into_parts();
+        let (mut parts, ()) = req.into_parts();
 
         let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
         assert!(matches!(err, ApiError::Unauthorized(_)));

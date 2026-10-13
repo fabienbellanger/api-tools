@@ -6,20 +6,28 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 /// Payload errors
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum PayloadError {
+    /// No token found in the request headers
     #[error("Missing token")]
     MissingToken,
 
+    /// The token could not be parsed or validated
     #[error("Invalid token: {0}")]
     ParseTokenError(String),
 
+    /// The request headers are malformed
     #[error("Invalid headers")]
     InvalidHeaders,
 }
 
+/// Extracts a JWT payload of type `P` from request headers of type `H`
 pub trait PayloadExtractor<H, P: Debug + Serialize + for<'de> Deserialize<'de>> {
     /// Extract payload from request headers
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PayloadError`] if the token is missing, malformed or invalid.
     fn try_from_headers(headers: &H, jwt: &Jwt) -> Result<P, PayloadError>;
 }
 

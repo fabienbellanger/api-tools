@@ -10,9 +10,9 @@ use std::fmt::Display;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-/// TimeSlots represents a collection of time intervals
+/// `TimeSlots` represents a collection of time intervals
 /// where each interval is defined by a start and end time.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimeSlots(Vec<TimeSlot>);
 
 impl TimeSlots {
@@ -29,7 +29,8 @@ impl TimeSlots {
     /// assert_eq!(time_slots.values()[1].start, "13:00");
     /// assert_eq!(time_slots.values()[1].end, "17:00");
     /// ```
-    pub fn values(&self) -> &Vec<TimeSlot> {
+    #[must_use]
+    pub const fn values(&self) -> &Vec<TimeSlot> {
         &self.0
     }
 
@@ -56,6 +57,7 @@ impl TimeSlots {
     /// let now = "09:00";
     /// assert_eq!(time_slots.contains(now), false);
     /// ```
+    #[must_use]
     pub fn contains(&self, time: &str) -> bool {
         self.0.iter().any(|slot| *slot.start <= *time && *time <= *slot.end)
     }
@@ -63,15 +65,13 @@ impl TimeSlots {
 
 impl Display for TimeSlots {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut slots = String::new();
         for (i, slot) in self.0.iter().enumerate() {
-            slots.push_str(&format!("{} - {}", slot.start, slot.end));
-
-            if i < self.0.len() - 1 {
-                slots.push_str(", ");
+            if i > 0 {
+                f.write_str(", ")?;
             }
+            write!(f, "{} - {}", slot.start, slot.end)?;
         }
-        write!(f, "{slots}")
+        Ok(())
     }
 }
 
@@ -86,9 +86,12 @@ impl From<&str> for TimeSlots {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// Time slot with `HH:MM` start and end times
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimeSlot {
+    /// Start time (`HH:MM`)
     pub start: String,
+    /// End time (`HH:MM`)
     pub end: String,
 }
 
@@ -96,9 +99,9 @@ impl TryFrom<&str> for TimeSlot {
     type Error = ApiError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let (start, end) = value.split_once('-').ok_or(ApiError::InternalServerError(
-            "Time slots configuration error".to_string(),
-        ))?;
+        let (start, end) = value
+            .split_once('-')
+            .ok_or_else(|| ApiError::InternalServerError("Time slots configuration error".to_string()))?;
 
         if start.len() != 5 || end.len() != 5 {
             return Err(ApiError::InternalServerError(
@@ -113,14 +116,17 @@ impl TryFrom<&str> for TimeSlot {
     }
 }
 
+/// Layer answering `503 Service Unavailable` during the configured time slots
 #[derive(Clone)]
 pub struct TimeLimiterLayer {
+    /// Time slots during which the service is unavailable
     pub time_slots: TimeSlots,
 }
 
 impl TimeLimiterLayer {
     /// Create a new `TimeLimiterLayer`
-    pub fn new(time_slots: TimeSlots) -> Self {
+    #[must_use]
+    pub const fn new(time_slots: TimeSlots) -> Self {
         Self { time_slots }
     }
 }
@@ -136,6 +142,7 @@ impl<S> Layer<S> for TimeLimiterLayer {
     }
 }
 
+/// Middleware produced by [`TimeLimiterLayer`]
 #[derive(Clone)]
 pub struct TimeLimiterMiddleware<S> {
     inner: S,
@@ -217,14 +224,14 @@ mod tests {
     #[test]
     fn test_timeslots_display() {
         let time_slots: TimeSlots = "08:00-12:00,13:00-17:00".into();
-        let display = format!("{}", time_slots);
+        let display = format!("{time_slots}");
         assert_eq!(display, "08:00 - 12:00, 13:00 - 17:00");
     }
 
     #[test]
     fn test_timeslots_empty_display() {
         let time_slots: TimeSlots = "".into();
-        let display = format!("{}", time_slots);
+        let display = format!("{time_slots}");
         assert_eq!(display, "");
     }
 
