@@ -1,6 +1,6 @@
 [package]
 name = "api-tools"
-version = "0.9.1"
+version = "0.10.0"
 authors = ["Fabien Bellanger <valentil@gmail.com>"]
 description = "An API tools library for Rust"
 edition = "2024"
@@ -61,7 +61,10 @@ jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
 
 [dev-dependencies]
 base64 = "0.22.1"
-tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "std"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = [
+    "registry",
+    "std",
+] }
 
 [package.metadata.docs.rs]
 all-features = true

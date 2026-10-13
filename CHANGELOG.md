@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## [Unreleased]
+## `0.10.0` (2026-10-14) [CURRENT]
 
 ### Changed
 
@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Deserialize` error on a named param) explicitly. The `400` message is now
   ``Cannot parse `key` with value `value`: message`` instead of being prefixed
   with `Unhandled deserialization error:`.
+- Update dependencies: `bytes` (`1.12.0` → `1.12.1`), `bytesize` (`2.4.2` →
+  `2.7.0`), `futures` (`0.3.32` → `0.3.34`), `hyper` (`1.10.1` → `1.12.0`),
+  `serde` (`1.0.228` → `1.0.229`), `serde_json` (`1.0.150` → `1.0.154`),
+  `thiserror` (`2.0.18` → `2.0.21`), `tokio` (`1.52.3` → `1.53.2`), `tower-http`
+  (`0.7.0` → `0.7.1`), `uuid` (`1.23.4` → `1.26.1`).
+- Add `tracing-subscriber` (`0.3.23`) as a dev dependency, to test the logged
+  events and the `trace_id` in error responses.
 
 ### Fixed
 
@@ -51,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inner `Response<Body>`. The middleware now accepts any inner response body
   and turns it back into an axum `Body`.
 
-## `0.9.1` (2026-07-04) [CURRENT]
+## `0.9.1` (2026-07-04)
 
 ### Added
 
