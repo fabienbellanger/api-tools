@@ -31,15 +31,19 @@ impl Display for QuerySortDirection {
     }
 }
 
+/// Sort criterion: a field and its direction
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QuerySort {
+    /// Field to sort on
     pub field: QuerySortField,
+    /// Sort direction
     pub direction: QuerySortDirection,
 }
 
 impl QuerySort {
     /// Create a new query sort
-    pub fn new(field: QuerySortField, direction: QuerySortDirection) -> Self {
+    #[must_use]
+    pub const fn new(field: QuerySortField, direction: QuerySortDirection) -> Self {
         Self { field, direction }
     }
 }
@@ -114,7 +118,7 @@ mod tests {
     #[test]
     fn test_filter_sorts_from_str() {
         let sorts = QuerySorts::from("");
-        assert!(sorts.0.is_empty());
+        assert_eq!(sorts.0, Vec::new());
 
         let sorts = QuerySorts::from("+id,-name");
         assert_eq!(sorts.0.len(), 2);
@@ -211,8 +215,8 @@ mod tests {
 
     #[test]
     fn test_filter_sorts_from_str_ignores_empty_fields() {
-        assert!(QuerySorts::from("+,-, ,,").0.is_empty());
-        assert!(QuerySorts::from("   ").0.is_empty());
+        assert_eq!(QuerySorts::from("+,-, ,,").0, Vec::new());
+        assert_eq!(QuerySorts::from("   ").0, Vec::new());
     }
 
     /// A raw `+` in a query string is decoded as a space: `?sort=+id,-name`

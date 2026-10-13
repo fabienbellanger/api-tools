@@ -12,14 +12,18 @@ use hyper::StatusCode;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
+/// Layer enforcing HTTP Basic authentication
 #[derive(Clone)]
 pub struct BasicAuthLayer {
+    /// Expected username
     pub username: String,
+    /// Expected password
     pub password: String,
 }
 
 impl BasicAuthLayer {
     /// Create a new `BasicAuthLayer`
+    #[must_use]
     pub fn new(username: &str, password: &str) -> Self {
         Self {
             username: username.to_string(),
@@ -40,6 +44,7 @@ impl<S> Layer<S> for BasicAuthLayer {
     }
 }
 
+/// Middleware produced by [`BasicAuthLayer`]
 #[derive(Clone)]
 pub struct BasicAuthMiddleware<S> {
     inner: S,
@@ -128,7 +133,7 @@ mod tests {
     fn make_service(
         username: &str,
         password: &str,
-    ) -> impl tower::Service<Request<Body>, Response = Response, Error = Infallible> + Clone {
+    ) -> impl Service<Request<Body>, Response = Response, Error = Infallible> + Clone {
         BasicAuthLayer::new(username, password).layer(tower::service_fn(dummy_service))
     }
 
@@ -241,7 +246,7 @@ mod tests {
         // Request with good credentials
         let good_auth = format!(
             "Basic {}",
-            general_purpose::STANDARD.encode(format!("{}:{}", username, password))
+            general_purpose::STANDARD.encode(format!("{username}:{password}"))
         );
         let req = Request::builder()
             .uri("/")

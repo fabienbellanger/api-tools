@@ -16,23 +16,29 @@ const JWT_ACCESS_LIFETIME_IN_MINUTES: i64 = 15; // 15 minutes
 const JWT_REFRESH_LIFETIME_IN_HOURS: i64 = 7 * 24; // 7 days
 
 /// JWT errors
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum JwtError {
+    /// The token could not be decoded
     #[error("Parse token error: {0}")]
     ParseError(String),
 
+    /// The token could not be generated
     #[error("Generate token error: {0}")]
     GenerateError(String),
 
+    /// The algorithm name is unknown or unsupported
     #[error("Invalid or unsupported algorithm: {0}")]
     InvalidAlgorithm(String),
 
+    /// The encoding key is missing or invalid
     #[error("Encoding key error: {0}")]
     EncodingKeyError(String),
 
+    /// The decoding key is missing or invalid, or the token failed validation
     #[error("Decoding key error: {0}")]
     DecodingKeyError(String),
 
+    /// The token has expired
     #[error("Expired token")]
     ExpiredToken,
 }
@@ -89,6 +95,12 @@ impl Debug for Jwt {
 
 impl Jwt {
     /// Initialize a new `Jwt`
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwtError::InvalidAlgorithm`] for an unknown algorithm, and
+    /// [`JwtError::EncodingKeyError`] / [`JwtError::DecodingKeyError`] if the keys required by the
+    /// algorithm are missing or invalid.
     pub fn init(
         algorithm: &str,
         access_lifetime: i64,
@@ -97,7 +109,7 @@ impl Jwt {
         private_key: Option<&str>,
         public_key: Option<&str>,
     ) -> Result<Self, JwtError> {
-        let mut jwt = Jwt {
+        let mut jwt = Self {
             algorithm: Self::algorithm_from_str(algorithm)?,
             access_lifetime,
             refresh_lifetime,
@@ -122,26 +134,33 @@ impl Jwt {
     }
 
     /// Get access token lifetime
-    pub fn access_lifetime(&self) -> i64 {
+    #[must_use]
+    pub const fn access_lifetime(&self) -> i64 {
         self.access_lifetime
     }
 
     /// Get refresh token lifetime
-    pub fn refresh_lifetime(&self) -> i64 {
+    #[must_use]
+    pub const fn refresh_lifetime(&self) -> i64 {
         self.refresh_lifetime
     }
 
     /// Update access token lifetime (in minute)
-    pub fn set_access_lifetime(&mut self, duration: i64) {
+    pub const fn set_access_lifetime(&mut self, duration: i64) {
         self.access_lifetime = duration;
     }
 
     /// Update refresh token lifetime (in day)
-    pub fn set_refresh_lifetime(&mut self, duration: i64) {
+    pub const fn set_refresh_lifetime(&mut self, duration: i64) {
         self.refresh_lifetime = duration;
     }
 
     /// Update encoding key
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwtError::EncodingKeyError`] if the key cannot be parsed for the current algorithm.
+    /// Returns [`JwtError::InvalidAlgorithm`] for an algorithm this crate does not support yet.
     pub fn set_encoding_key(&mut self, secret: &str) -> Result<(), JwtError> {
         let key = match self.algorithm {
             Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(secret.as_bytes()),
@@ -153,6 +172,8 @@ impl Jwt {
                 .map_err(|err| JwtError::EncodingKeyError(err.to_string()))?,
             Algorithm::EdDSA => EncodingKey::from_ed_pem(secret.as_bytes())
                 .map_err(|err| JwtError::EncodingKeyError(err.to_string()))?,
+            // `Algorithm` is `#[non_exhaustive]` since jsonwebtoken 11
+            algorithm => return Err(JwtError::InvalidAlgorithm(format!("{algorithm:?}"))),
         };
 
         self.encoding_key = Some(key);
@@ -161,6 +182,11 @@ impl Jwt {
     }
 
     /// Update decoding key
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwtError::DecodingKeyError`] if the key cannot be parsed for the current algorithm.
+    /// Returns [`JwtError::InvalidAlgorithm`] for an algorithm this crate does not support yet.
     pub fn set_decoding_key(&mut self, secret: &str) -> Result<(), JwtError> {
         let key = match self.algorithm {
             Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => DecodingKey::from_secret(secret.as_bytes()),
@@ -172,6 +198,8 @@ impl Jwt {
                 .map_err(|err| JwtError::DecodingKeyError(err.to_string()))?,
             Algorithm::EdDSA => DecodingKey::from_ed_pem(secret.as_bytes())
                 .map_err(|err| JwtError::DecodingKeyError(err.to_string()))?,
+            // `Algorithm` is `#[non_exhaustive]` since jsonwebtoken 11
+            algorithm => return Err(JwtError::InvalidAlgorithm(format!("{algorithm:?}"))),
         };
 
         self.decoding_key = Some(key);
@@ -180,6 +208,10 @@ impl Jwt {
     }
 
     /// Generate JWT
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwtError::EncodingKeyError`] if no encoding key is set or encoding fails.
     pub fn generate<P: Debug + Serialize>(&self, payload: P, expired_at: UtcDateTime) -> Result<AccessToken, JwtError> {
         let header = jsonwebtoken::Header::new(self.algorithm);
 
@@ -195,6 +227,11 @@ impl Jwt {
     }
 
     /// Parse JWT
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwtError::ExpiredToken`] if the token has expired, and
+    /// [`JwtError::DecodingKeyError`] if no decoding key is set or the token is invalid.
     pub fn parse<P: Clone + Debug + for<'de> Deserialize<'de>>(&self, token: &AccessToken) -> Result<P, JwtError> {
         let validation = Validation::new(self.algorithm);
 
@@ -278,7 +315,7 @@ mod tests {
     #[test]
     fn test_jwt_debug() {
         let jwt = Jwt::default();
-        let debug_str = format!("{:?}", jwt);
+        let debug_str = format!("{jwt:?}");
 
         assert_eq!(
             debug_str,
@@ -332,7 +369,7 @@ mod tests {
             exp: future_exp(60),
         };
         let token = jwt.generate(claims.clone(), UtcDateTime::now()).expect("generate");
-        assert!(!token.token.is_empty());
+        assert_ne!(token.token, "");
 
         let parsed: TestClaims = jwt.parse(&token).expect("parse");
         assert_eq!(parsed, claims);

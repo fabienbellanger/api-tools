@@ -5,12 +5,15 @@ use std::fmt::Display;
 use std::str::FromStr;
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Error)]
+/// Timezone possible errors
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum TimezoneError {
+    /// The input is not a known IANA timezone
     #[error("Invalid timezone: {0}")]
     Invalid(String),
 }
 
+/// IANA timezone (e.g. `Europe/Paris`)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Timezone {
     value: Tz,
@@ -18,7 +21,8 @@ pub struct Timezone {
 
 impl Timezone {
     /// Create a new timezone
-    pub fn new(tz: Tz) -> Self {
+    #[must_use]
+    pub const fn new(tz: Tz) -> Self {
         Self { value: tz }
     }
 }
@@ -85,7 +89,7 @@ mod test {
         let err = Timezone::try_from("Mars/Olympus").unwrap_err();
         let TimezoneError::Invalid(message) = &err;
 
-        assert!(!message.is_empty());
+        assert_ne!(message, "");
         assert!(err.to_string().starts_with("Invalid timezone: "));
     }
 

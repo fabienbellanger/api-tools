@@ -23,8 +23,9 @@ where
 }
 
 impl<T: Serialize + PartialEq> ApiSuccess<T> {
-    pub fn new(status: StatusCode, data: T) -> Self {
-        ApiSuccess(status, Json(data))
+    /// Create a new success response
+    pub const fn new(status: StatusCode, data: T) -> Self {
+        Self(status, Json(data))
     }
 }
 
@@ -36,7 +37,7 @@ impl<T: Serialize + PartialEq> IntoResponse for ApiSuccess<T> {
 
 /// Generic response structure shared by all API responses.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub(crate) struct ApiErrorResponse<T: Serialize + PartialEq> {
+pub(crate) struct ApiErrorResponse<T> {
     code: u16,
     message: T,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,7 +45,7 @@ pub(crate) struct ApiErrorResponse<T: Serialize + PartialEq> {
 }
 
 impl<T: Serialize + PartialEq> ApiErrorResponse<T> {
-    pub(crate) fn new(status_code: StatusCode, message: T, trace_id: Option<String>) -> Self {
+    pub(crate) const fn new(status_code: StatusCode, message: T, trace_id: Option<String>) -> Self {
         Self {
             code: status_code.as_u16(),
             message,
@@ -54,38 +55,49 @@ impl<T: Serialize + PartialEq> ApiErrorResponse<T> {
 }
 
 /// API error
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ApiError {
+    /// `400 Bad Request`
     #[error("Bad request: {0}")]
     BadRequest(String),
 
+    /// `401 Unauthorized`
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
 
+    /// `403 Forbidden`
     #[error("Forbidden: {0}")]
     Forbidden(String),
 
+    /// `404 Not Found`
     #[error("Not found: {0}")]
     NotFound(String),
 
+    /// `422 Unprocessable Entity`
     #[error("Unprocessable entity: {0}")]
     UnprocessableEntity(String),
 
+    /// `500 Internal Server Error`
     #[error("Internal server error: {0}")]
     InternalServerError(String),
 
+    /// `408 Request Timeout`
     #[error("Timeout")]
     Timeout,
 
+    /// `429 Too Many Requests`
     #[error("Too many requests")]
     TooManyRequests,
 
+    /// `405 Method Not Allowed`
     #[error("Method not allowed")]
     MethodNotAllowed,
 
+    /// `413 Payload Too Large`
     #[error("Payload too large")]
     PayloadTooLarge,
 
+    /// `503 Service Unavailable`
     #[error("Service unavailable")]
     ServiceUnavailable,
 }
@@ -164,27 +176,23 @@ impl ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {
-            ApiError::Timeout => Self::response(StatusCode::REQUEST_TIMEOUT, "Request timeout").into_response(),
-            ApiError::TooManyRequests => {
-                Self::response(StatusCode::TOO_MANY_REQUESTS, "Too many requests").into_response()
-            }
-            ApiError::MethodNotAllowed => {
+            Self::Timeout => Self::response(StatusCode::REQUEST_TIMEOUT, "Request timeout").into_response(),
+            Self::TooManyRequests => Self::response(StatusCode::TOO_MANY_REQUESTS, "Too many requests").into_response(),
+            Self::MethodNotAllowed => {
                 Self::response(StatusCode::METHOD_NOT_ALLOWED, "Method not allowed").into_response()
             }
-            ApiError::PayloadTooLarge => {
-                Self::response(StatusCode::PAYLOAD_TOO_LARGE, "Payload too large").into_response()
-            }
-            ApiError::ServiceUnavailable => {
+            Self::PayloadTooLarge => Self::response(StatusCode::PAYLOAD_TOO_LARGE, "Payload too large").into_response(),
+            Self::ServiceUnavailable => {
                 Self::response(StatusCode::SERVICE_UNAVAILABLE, "Service unavailable").into_response()
             }
-            ApiError::BadRequest(message) => Self::response(StatusCode::BAD_REQUEST, &message).into_response(),
-            ApiError::Unauthorized(message) => Self::response(StatusCode::UNAUTHORIZED, &message).into_response(),
-            ApiError::Forbidden(message) => Self::response(StatusCode::FORBIDDEN, &message).into_response(),
-            ApiError::NotFound(message) => Self::response(StatusCode::NOT_FOUND, &message).into_response(),
-            ApiError::UnprocessableEntity(message) => {
+            Self::BadRequest(message) => Self::response(StatusCode::BAD_REQUEST, &message).into_response(),
+            Self::Unauthorized(message) => Self::response(StatusCode::UNAUTHORIZED, &message).into_response(),
+            Self::Forbidden(message) => Self::response(StatusCode::FORBIDDEN, &message).into_response(),
+            Self::NotFound(message) => Self::response(StatusCode::NOT_FOUND, &message).into_response(),
+            Self::UnprocessableEntity(message) => {
                 Self::response(StatusCode::UNPROCESSABLE_ENTITY, &message).into_response()
             }
-            ApiError::InternalServerError(message) => {
+            Self::InternalServerError(message) => {
                 Self::response(StatusCode::INTERNAL_SERVER_ERROR, &message).into_response()
             }
         }

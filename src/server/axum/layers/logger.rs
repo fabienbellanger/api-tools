@@ -77,6 +77,7 @@ impl LoggerMessage {
     }
 }
 
+/// Layer logging each request and its response
 #[derive(Clone)]
 pub struct LoggerLayer;
 
@@ -88,6 +89,7 @@ impl<S> Layer<S> for LoggerLayer {
     }
 }
 
+/// Middleware produced by [`LoggerLayer`]
 #[derive(Clone)]
 pub struct LoggerMiddleware<S> {
     inner: S,
@@ -150,11 +152,11 @@ mod tests {
 
     fn make_svc(
         status: StatusCode,
-    ) -> impl tower::Service<
+    ) -> impl Service<
         Request<Body>,
         Response = Response,
         Error = Infallible,
-        Future = impl std::future::Future<Output = Result<Response, Infallible>> + Send,
+        Future = impl Future<Output = Result<Response, Infallible>> + Send,
     > + Clone
     + Send
     + 'static {
@@ -193,7 +195,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    /// SERVICE_UNAVAILABLE is the only 5xx still logged at info level — it is
+    /// `SERVICE_UNAVAILABLE` is the only 5xx still logged at info level — it is
     /// the legitimate "outside time slot" response from `time_limiter`, not a
     /// real failure.
     #[tokio::test]

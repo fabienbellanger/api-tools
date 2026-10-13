@@ -18,8 +18,11 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 /// };
 /// ```
 pub struct CorsConfig<'a> {
+    /// Allowed origins (comma-separated list, or `*`)
     pub allow_origin: &'a str,
+    /// Allowed HTTP methods
     pub allow_methods: Vec<Method>,
+    /// Allowed request headers
     pub allow_headers: Vec<HeaderName>,
 }
 
@@ -199,7 +202,13 @@ mod tests {
 
     fn service(
         allow_origin: &str,
-    ) -> impl tower::Service<Request<Body>, Response = Response, Error = Infallible> + Clone {
+    ) -> impl tower::Service<
+        Request<Body>,
+        Response = Response,
+        Error = Infallible,
+        Future = impl Future<Output = Result<Response, Infallible>> + Send,
+    > + Clone
+    + Send {
         ServiceBuilder::new()
             .layer(cors(CorsConfig {
                 allow_origin,

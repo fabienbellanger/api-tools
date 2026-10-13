@@ -45,6 +45,7 @@ pub fn body_from_parts(
 }
 
 /// Convert `HeaderValue` to `&str`
+#[must_use]
 pub fn header_value_to_str(value: Option<&HeaderValue>) -> &str {
     match value {
         Some(value) => from_utf8(value.as_bytes()).unwrap_or_default(),
@@ -73,7 +74,7 @@ mod tests {
     }
 
     fn empty_parts() -> Parts {
-        let (parts, _) = axum::http::Response::new(()).into_parts();
+        let (parts, ()) = axum::http::Response::new(()).into_parts();
         parts
     }
 

@@ -15,13 +15,16 @@ pub struct HttpErrorsConfig {
     pub body_max_size: usize,
 }
 
+/// Layer rewriting framework errors (`404`, `405`, `422`) into JSON API errors
 #[derive(Clone)]
 pub struct HttpErrorsLayer {
+    /// HTTP errors configuration
     pub config: HttpErrorsConfig,
 }
 
 impl HttpErrorsLayer {
     /// Create a new `HttpErrorsLayer`
+    #[must_use]
     pub fn new(config: &HttpErrorsConfig) -> Self {
         Self { config: config.clone() }
     }
@@ -38,6 +41,7 @@ impl<S> Layer<S> for HttpErrorsLayer {
     }
 }
 
+/// Middleware produced by [`HttpErrorsLayer`]
 #[derive(Clone)]
 pub struct HttpErrorsMiddleware<S> {
     inner: S,

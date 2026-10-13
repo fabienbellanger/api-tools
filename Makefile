@@ -43,7 +43,7 @@ upgrade-force:
 ## lint: Run clippy and rustfmt
 lint:
 	$(CARGO) fmt
-	$(CARGO) clippy --all-features -- -D warnings
+	$(CARGO) clippy --all-features --all-targets -- -D warnings
 
 ## lint-audit: Run clippy, rustfmt and audit
 lint-audit: lint

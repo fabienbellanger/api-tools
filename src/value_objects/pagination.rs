@@ -10,9 +10,12 @@ pub const PAGINATION_MAX_LIMIT: u32 = 500;
 pub const PAGINATION_DEFAULT_LIMIT: u32 = 200;
 
 // The default limit must be a valid limit: checked at compile time.
-const _: () =
-    assert!(PAGINATION_MIN_LIMIT <= PAGINATION_DEFAULT_LIMIT && PAGINATION_DEFAULT_LIMIT <= PAGINATION_MAX_LIMIT);
+const _: () = assert!(
+    PAGINATION_MIN_LIMIT <= PAGINATION_DEFAULT_LIMIT && PAGINATION_DEFAULT_LIMIT <= PAGINATION_MAX_LIMIT,
+    "PAGINATION_DEFAULT_LIMIT must be between PAGINATION_MIN_LIMIT and PAGINATION_MAX_LIMIT"
+);
 
+/// Pagination request (page number and page size)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pagination {
     page: u32,
@@ -59,6 +62,7 @@ impl Pagination {
     /// let pagination = Pagination::new(2, 100, Some(5));
     /// assert_eq!(pagination.limit(), PAGINATION_MIN_LIMIT);
     /// ```
+    #[must_use]
     pub fn new(page: u32, limit: u32, max_limit: Option<u32>) -> Self {
         let page = page.max(1);
         let max_limit = max_limit.map(|max| max.clamp(PAGINATION_MIN_LIMIT, PAGINATION_MAX_LIMIT));
@@ -68,12 +72,14 @@ impl Pagination {
     }
 
     /// Get page
-    pub fn page(&self) -> u32 {
+    #[must_use]
+    pub const fn page(&self) -> u32 {
         self.page
     }
 
     /// Get limit
-    pub fn limit(&self) -> u32 {
+    #[must_use]
+    pub const fn limit(&self) -> u32 {
         self.limit
     }
 
@@ -106,17 +112,20 @@ impl Default for Pagination {
 }
 
 /// Pagination for response
-#[derive(Debug, Clone, PartialEq)]
-
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PaginationResponse {
+    /// Current page (starts at 1)
     pub page: u32,
+    /// Number of items per page
     pub limit: u32,
+    /// Total number of items
     pub total: i64,
 }
 
 impl PaginationResponse {
     /// Create a new pagination response
-    pub fn new(page: u32, limit: u32, total: i64) -> Self {
+    #[must_use]
+    pub const fn new(page: u32, limit: u32, total: i64) -> Self {
         Self { page, limit, total }
     }
 }

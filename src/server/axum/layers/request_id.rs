@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 use tower_http::request_id::{MakeRequestId, RequestId};
 use uuid::Uuid;
 
+/// Request ID generator producing a random UUID v4
 #[derive(Clone, Copy)]
 pub struct MakeRequestUuid;
 

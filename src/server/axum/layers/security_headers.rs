@@ -13,18 +13,25 @@ use tower::{Layer, Service};
 /// Configuration for security headers
 #[derive(Clone, Debug)]
 pub struct SecurityHeadersConfig {
+    /// `Content-Security-Policy` header value
     pub content_security_policy: HeaderValue,
+    /// `Strict-Transport-Security` header value
     pub strict_transport_security: HeaderValue,
+    /// `X-Content-Type-Options` header value
     pub x_content_type_options: HeaderValue,
+    /// `X-Frame-Options` header value
     pub x_frame_options: HeaderValue,
+    /// `X-XSS-Protection` header value
     pub x_xss_protection: HeaderValue,
+    /// `Referrer-Policy` header value
     pub referrer_policy: HeaderValue,
+    /// `Permissions-Policy` header value
     pub permissions_policy: HeaderValue,
 }
 
 impl Default for SecurityHeadersConfig {
     fn default() -> Self {
-        SecurityHeadersConfig {
+        Self {
             content_security_policy: HeaderValue::from_static("default-src 'self';"),
             strict_transport_security: HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
             x_content_type_options: HeaderValue::from_static("nosniff"),
@@ -36,14 +43,16 @@ impl Default for SecurityHeadersConfig {
     }
 }
 
+/// Layer adding security headers to every response
 #[derive(Clone)]
 pub struct SecurityHeadersLayer {
+    /// Security headers configuration
     pub config: SecurityHeadersConfig,
 }
 
 impl SecurityHeadersLayer {
     /// Create a new `SecurityLayer`
-    pub fn new(config: SecurityHeadersConfig) -> Self {
+    pub const fn new(config: SecurityHeadersConfig) -> Self {
         Self { config }
     }
 }
@@ -59,6 +68,7 @@ impl<S> Layer<S> for SecurityHeadersLayer {
     }
 }
 
+/// Middleware produced by [`SecurityHeadersLayer`]
 #[derive(Clone)]
 pub struct SecurityHeadersMiddleware<S> {
     inner: S,

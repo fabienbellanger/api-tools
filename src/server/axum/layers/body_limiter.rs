@@ -55,13 +55,16 @@ pub struct BodyLimiterConfig {
     pub body_max_size: usize,
 }
 
+/// Layer rejecting requests whose `Content-Length` exceeds the configured limit
 #[derive(Clone)]
 pub struct BodyLimiterLayer {
+    /// Body limiter configuration
     pub config: BodyLimiterConfig,
 }
 
 impl BodyLimiterLayer {
     /// Create a new `BodyLimiterLayer`
+    #[must_use]
     pub fn new(config: &BodyLimiterConfig) -> Self {
         Self { config: config.clone() }
     }
@@ -78,6 +81,7 @@ impl<S> Layer<S> for BodyLimiterLayer {
     }
 }
 
+/// Middleware produced by [`BodyLimiterLayer`]
 #[derive(Clone)]
 pub struct BodyLimiterMiddleware<S> {
     inner: S,

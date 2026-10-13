@@ -75,6 +75,7 @@ impl<S> Layer<S> for PrometheusLayer {
     }
 }
 
+/// Middleware produced by [`PrometheusLayer`]
 #[derive(Clone)]
 pub struct PrometheusMiddleware<S> {
     inner: S,
@@ -149,6 +150,15 @@ where
 /// Map common HTTP status codes to a `&'static str` to avoid formatting an
 /// integer on every response. Falls back to an owned string for uncommon
 /// codes.
+/// Convert a byte count to a gauge value
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "f64 is exact up to 2^53 bytes (8 PiB), far beyond any host value"
+)]
+const fn bytes_gauge(bytes: u64) -> f64 {
+    bytes as f64
+}
+
 fn status_label(code: u16) -> Cow<'static, str> {
     match code {
         200 => Cow::Borrowed("200"),
@@ -187,6 +197,7 @@ fn status_label(code: u16) -> Cow<'static, str> {
 ///
 /// The returned [`JoinHandle`] can be aborted at shutdown; if dropped, the
 /// task continues running for the lifetime of the Tokio runtime.
+#[must_use]
 pub fn spawn_system_metrics_collector(
     service_name: String,
     disk_mount_points: Vec<PathBuf>,
@@ -222,12 +233,12 @@ pub fn spawn_system_metrics_collector(
             }
 
             gauge!("system_cpu_usage", "service" => service_name.clone()).set(cpu_usage);
-            gauge!("system_total_memory", "service" => service_name.clone()).set(total_memory as f64);
-            gauge!("system_used_memory", "service" => service_name.clone()).set(used_memory as f64);
-            gauge!("system_total_swap", "service" => service_name.clone()).set(total_swap as f64);
-            gauge!("system_used_swap", "service" => service_name.clone()).set(used_swap as f64);
-            gauge!("system_total_disks_space", "service" => service_name.clone()).set(total_disks_space as f64);
-            gauge!("system_used_disks_space", "service" => service_name.clone()).set(used_disks_space as f64);
+            gauge!("system_total_memory", "service" => service_name.clone()).set(bytes_gauge(total_memory));
+            gauge!("system_used_memory", "service" => service_name.clone()).set(bytes_gauge(used_memory));
+            gauge!("system_total_swap", "service" => service_name.clone()).set(bytes_gauge(total_swap));
+            gauge!("system_used_swap", "service" => service_name.clone()).set(bytes_gauge(used_swap));
+            gauge!("system_total_disks_space", "service" => service_name.clone()).set(bytes_gauge(total_disks_space));
+            gauge!("system_used_disks_space", "service" => service_name.clone()).set(bytes_gauge(used_disks_space));
         }
     })
 }

@@ -4,8 +4,9 @@ version = "0.10.0"
 authors = ["Fabien Bellanger <valentil@gmail.com>"]
 description = "An API tools library for Rust"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 keywords = ["API", "Axum", "Layer", "Metrics", "Tools"]
+categories = ["web-programming::http-server"]
 license = "MIT"
 readme = "README.md"
 documentation = "https://docs.rs/api-tools"
@@ -32,8 +33,8 @@ tower-http = { version = "0.7.1", features = ["cors", "request-id", "limit"] }
 
 # Logs
 tracing = "0.1.44"
-tracing-opentelemetry = "0.33.0"
-opentelemetry = "0.32.0"
+tracing-opentelemetry = "0.34.0"
+opentelemetry = "0.33.1"
 
 # Serde
 serde = { version = "1.0.229", features = ["derive"] }
@@ -56,11 +57,11 @@ chrono-tz = "0.10.4"
 futures = "0.3.34"
 mime = "0.3.17"
 tokio = { version = "1.53.2", features = ["full"] }
-uuid = { version = "1.26.1", features = ["v4", "serde"] }
-jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
+uuid = { version = "1.28.0", features = ["v4", "serde"] }
+jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 
 [dev-dependencies]
-base64 = "0.22.1"
+base64 = "0.23.1"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = [
     "registry",
     "std",
@@ -68,3 +69,32 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 
 [package.metadata.docs.rs]
 all-features = true
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unused_qualifications = "warn"
+
+[lints.clippy]
+# Groups (priority = -1 so individual lints below can override them)
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+# Hand-picked `restriction` lints
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+allow_attributes_without_reason = "warn"
+missing_assert_message = "warn"
+
+# Pedantic / nursery / cargo exceptions
+module_name_repetitions = "allow"
+multiple_crate_versions = "allow"   # transitive duplicates are out of our control
+option_if_let_else = "allow"        # `map_or_else` rewrites are less readable than `match`
+unused_async_trait_impl = "allow"   # `async fn` is the idiomatic form for axum's `FromRequestParts`

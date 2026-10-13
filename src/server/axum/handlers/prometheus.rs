@@ -13,6 +13,10 @@ pub struct PrometheusHandler {}
 impl PrometheusHandler {
     /// Install the global Prometheus recorder using
     /// [`DEFAULT_DURATION_BUCKETS`] for the request-duration histogram.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::InternalServerError`] if a global recorder is already installed.
     pub fn get_handle() -> Result<PrometheusHandle, ApiError> {
         Self::get_handle_with_buckets(DEFAULT_DURATION_BUCKETS)
     }
@@ -21,6 +25,11 @@ impl PrometheusHandler {
     /// (in seconds) for `http_requests_duration_seconds`. Use this when the
     /// default bucket distribution does not match your service's latency
     /// profile.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::InternalServerError`] if `buckets` is empty or a global recorder is
+    /// already installed.
     pub fn get_handle_with_buckets(buckets: &[f64]) -> Result<PrometheusHandle, ApiError> {
         PrometheusBuilder::new()
             .set_buckets_for_metric(Matcher::Full("http_requests_duration_seconds".to_string()), buckets)
@@ -36,7 +45,7 @@ mod tests {
 
     #[test]
     fn default_duration_buckets_are_monotonically_increasing() {
-        assert!(!DEFAULT_DURATION_BUCKETS.is_empty());
+        assert_ne!(DEFAULT_DURATION_BUCKETS.len(), 0);
         for pair in DEFAULT_DURATION_BUCKETS.windows(2) {
             assert!(pair[0] < pair[1], "buckets must be strictly increasing: {pair:?}");
         }
