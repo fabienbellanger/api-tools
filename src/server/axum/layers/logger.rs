@@ -252,4 +252,53 @@ mod tests {
 
         assert_eq!(message.to_string(), expected);
     }
+
+    #[tokio::test]
+    async fn middleware_propagates_inner_service_error() {
+        let svc = ServiceBuilder::new()
+            .layer(LoggerLayer)
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Err::<Response, _>("boom")
+            }));
+
+        let err = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap_err();
+        assert_eq!(err, "boom");
+    }
+
+    /// The logger must not consume or alter the response body.
+    #[tokio::test]
+    async fn middleware_preserves_response_headers_and_body() {
+        let svc = ServiceBuilder::new()
+            .layer(LoggerLayer)
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::CREATED)
+                        .header("x-custom", "value")
+                        .body(Body::from("payload"))
+                        .unwrap(),
+                )
+            }));
+
+        let resp = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        assert_eq!(resp.headers().get("x-custom").unwrap(), "value");
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(&body[..], b"payload");
+    }
+
+    #[test]
+    fn test_logger_message_default_fmt() {
+        assert_eq!(
+            LoggerMessage::default().to_string(),
+            "status_code: 0, method: , path: , uri: , host: , request_id: , user_agent: , version: , latency: 0ns, body_size: 0 B",
+        );
+    }
 }

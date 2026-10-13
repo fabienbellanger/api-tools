@@ -307,4 +307,85 @@ mod middleware_tests {
         assert!(body.contains("\"code\":503"), "body was: {body}");
         assert!(body.contains("Service unavailable"), "body was: {body}");
     }
+
+    #[tokio::test]
+    async fn middleware_503_message_lists_the_time_slots() {
+        let layer = TimeLimiterLayer::new(TimeSlots::from("00:00-23:59"));
+        let svc = ServiceBuilder::new()
+            .layer(layer)
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(ok_response())
+            }));
+
+        let resp = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(
+            std::str::from_utf8(&body).unwrap(),
+            r#"{"code":503,"message":"Service unavailable during these times: 00:00 - 23:59"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn middleware_propagates_inner_service_error_when_authorized() {
+        let svc = ServiceBuilder::new()
+            .layer(TimeLimiterLayer::new(TimeSlots::from("")))
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Err::<Response, _>("boom")
+            }));
+
+        let err = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap_err();
+        assert_eq!(err, "boom");
+    }
+
+    #[test]
+    fn timeslots_from_str_skips_invalid_slots() {
+        let slots: TimeSlots = "08:00-12:00,invalid,9:00-10:00,13:00-17:00".into();
+        assert_eq!(
+            slots.values(),
+            &vec![
+                TimeSlot {
+                    start: "08:00".to_string(),
+                    end: "12:00".to_string(),
+                },
+                TimeSlot {
+                    start: "13:00".to_string(),
+                    end: "17:00".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn timeslots_contains_checks_every_slot() {
+        let slots: TimeSlots = "08:00-09:00,13:00-14:00".into();
+        assert!(slots.contains("08:30"));
+        assert!(slots.contains("13:30"));
+        assert!(!slots.contains("10:00"));
+        assert!(!slots.contains("15:00"));
+    }
+
+    #[test]
+    fn timeslot_try_from_rejects_wrong_lengths() {
+        for value in ["8:00-12:00", "08:00-1200", "08:00-", "-12:00", "08:00:00-12:00"] {
+            let err = TimeSlot::try_from(value).unwrap_err();
+            assert_eq!(
+                err,
+                ApiError::InternalServerError("Time slots configuration error".to_string()),
+                "{value:?} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn timeslots_single_display() {
+        let slots: TimeSlots = "22:00-23:00".into();
+        assert_eq!(slots.to_string(), "22:00 - 23:00");
+    }
 }

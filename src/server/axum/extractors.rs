@@ -246,4 +246,182 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
+
+    #[tokio::test]
+    async fn path_extractor_returns_400_on_wrong_number_of_parameters() {
+        // Two captures but a single-value extractor.
+        let app: Router = Router::new().route(
+            "/users/{id}/{name}",
+            get(|Path(id): Path<u64>| async move { id.to_string() }),
+        );
+
+        let response = app
+            .oneshot(Request::builder().uri("/users/1/alice").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":400"), "body was: {body}");
+        assert!(body.contains("Wrong number of path arguments"), "body was: {body}");
+    }
+
+    #[tokio::test]
+    async fn path_extractor_deserializes_tuple() {
+        let app: Router = Router::new().route(
+            "/users/{id}/posts/{post_id}",
+            get(|Path((id, post_id)): Path<(u64, u64)>| async move { format!("{id}-{post_id}") }),
+        );
+
+        let response = app
+            .oneshot(Request::builder().uri("/users/1/posts/2").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(read_body(response).await, "1-2");
+    }
+
+    #[tokio::test]
+    async fn path_extractor_returns_400_on_tuple_type_mismatch() {
+        let app: Router = Router::new().route(
+            "/users/{id}/posts/{post_id}",
+            get(|Path((id, post_id)): Path<(u64, u64)>| async move { format!("{id}-{post_id}") }),
+        );
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/1/posts/abc")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":400"), "body was: {body}");
+    }
+
+    #[tokio::test]
+    async fn path_extractor_returns_400_with_custom_deserialize_message() {
+        #[derive(Deserialize)]
+        #[serde(try_from = "String")]
+        struct Slug(#[allow(dead_code)] String);
+
+        impl TryFrom<String> for Slug {
+            type Error = String;
+
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                if value.chars().all(|c| c.is_ascii_lowercase()) {
+                    Ok(Self(value))
+                } else {
+                    Err("slug must be lowercase".to_string())
+                }
+            }
+        }
+
+        let app: Router = Router::new().route("/posts/{slug}", get(|_: Path<Slug>| async { "ok" }));
+
+        let response = app
+            .oneshot(Request::builder().uri("/posts/Hello").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = read_body(response).await;
+        assert!(body.contains("slug must be lowercase"), "body was: {body}");
+    }
+
+    /// Nested maps are not supported by the path deserializer: this is a
+    /// programmer error, reported as a 500.
+    #[tokio::test]
+    async fn path_extractor_returns_500_on_unsupported_type() {
+        let app: Router = Router::new().route(
+            "/users/{id}",
+            get(|_: Path<std::collections::HashMap<String, std::collections::HashMap<String, String>>>| async { "ok" }),
+        );
+
+        let response = app
+            .oneshot(Request::builder().uri("/users/1").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":500"), "body was: {body}");
+    }
+
+    /// On a route without any capture, axum provides an empty parameter list,
+    /// which surfaces as a wrong number of parameters (400).
+    #[tokio::test]
+    async fn path_extractor_returns_400_when_route_has_no_params() {
+        let app: Router = Router::new().route("/users", get(path_handler));
+
+        let response = app
+            .oneshot(Request::builder().uri("/users").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// Outside a router there are no path params at all: this is a
+    /// programmer error, reported as a 500.
+    #[tokio::test]
+    async fn path_extractor_returns_500_when_used_outside_a_router() {
+        let (mut parts, _) = Request::builder().uri("/users/1").body(()).unwrap().into_parts();
+
+        let Err((status, error)) = Path::<u64>::from_request_parts(&mut parts, &()).await else {
+            panic!("extraction must fail without path params");
+        };
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(matches!(error, ApiError::InternalServerError(_)));
+    }
+
+    #[tokio::test]
+    async fn query_extractor_accepts_missing_query_for_optional_fields() {
+        #[derive(Deserialize)]
+        struct OptionalArgs {
+            page: Option<u32>,
+        }
+
+        let app: Router = Router::new().route(
+            "/",
+            get(|Query(args): Query<OptionalArgs>| async move { format!("{:?}", args.page) }),
+        );
+
+        let response = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(read_body(response).await, "None");
+    }
+
+    #[tokio::test]
+    async fn query_extractor_decodes_url_encoded_values() {
+        #[derive(Deserialize)]
+        struct SearchArgs {
+            q: String,
+        }
+
+        let app: Router = Router::new().route("/", get(|Query(args): Query<SearchArgs>| async move { args.q }));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/?q=hello%20world%26co")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(read_body(response).await, "hello world&co");
+    }
 }

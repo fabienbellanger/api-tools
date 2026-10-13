@@ -415,4 +415,117 @@ mod tests {
             json!({ "code": 500, "message": "Internal server error" }).to_string()
         );
     }
+
+    async fn read_json(response: Response) -> serde_json::Value {
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1_024).await.unwrap();
+        serde_json::from_slice(&body_bytes).unwrap()
+    }
+
+    #[derive(Debug, PartialEq, Serialize)]
+    struct User {
+        id: u32,
+        name: String,
+    }
+
+    #[tokio::test]
+    async fn test_api_success_into_response_with_custom_status_and_struct() {
+        let user = User {
+            id: 1,
+            name: "Alice".to_string(),
+        };
+        let response = ApiSuccess::new(StatusCode::CREATED, user).into_response();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+        assert_eq!(read_json(response).await, json!({ "id": 1, "name": "Alice" }));
+    }
+
+    #[test]
+    fn test_api_success_partial_eq_compares_data() {
+        let a = ApiSuccess::new(StatusCode::OK, json!({"data": "a"}));
+        let b = ApiSuccess::new(StatusCode::OK, json!({"data": "b"}));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn test_api_error_response_serialization_skips_missing_trace_id() {
+        let error = ApiErrorResponse::new(StatusCode::NOT_FOUND, "Missing", None);
+        assert_eq!(
+            serde_json::to_value(error).unwrap(),
+            json!({ "code": 404, "message": "Missing" })
+        );
+    }
+
+    #[test]
+    fn test_api_error_response_serialization_includes_trace_id() {
+        let error = ApiErrorResponse::new(StatusCode::NOT_FOUND, "Missing", Some("abc".to_string()));
+        assert_eq!(
+            serde_json::to_value(error).unwrap(),
+            json!({ "code": 404, "message": "Missing", "trace_id": "abc" })
+        );
+    }
+
+    /// Any status not explicitly handled falls back to a 500.
+    #[tokio::test]
+    async fn test_api_error_response_unknown_status_falls_back_to_500() {
+        let response = ApiError::response(StatusCode::IM_A_TEAPOT, "teapot").into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(read_json(response).await, json!({ "code": 500, "message": "teapot" }));
+    }
+
+    mod trace_id {
+        use super::*;
+        use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceState, noop::NoopTracer};
+        use tracing_subscriber::layer::SubscriberExt;
+
+        const TRACE_ID: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
+
+        /// Runs `f` inside a tracing span whose OpenTelemetry parent carries
+        /// a known, valid trace id.
+        fn with_trace<R>(f: impl FnOnce() -> R) -> R {
+            let subscriber =
+                tracing_subscriber::registry().with(tracing_opentelemetry::layer().with_tracer(NoopTracer::new()));
+
+            tracing::subscriber::with_default(subscriber, || {
+                let span_context = SpanContext::new(
+                    TraceId::from_hex(TRACE_ID).unwrap(),
+                    SpanId::from_hex("00f067aa0ba902b7").unwrap(),
+                    TraceFlags::SAMPLED,
+                    true,
+                    TraceState::default(),
+                );
+                let span = tracing::info_span!("request");
+                let _ = span.set_parent(opentelemetry::Context::new().with_remote_span_context(span_context));
+                span.in_scope(f)
+            })
+        }
+
+        #[tokio::test]
+        async fn error_response_includes_trace_id_inside_a_traced_span() {
+            let response = with_trace(|| ApiError::NotFound("Missing".to_string()).into_response());
+
+            assert_eq!(
+                read_json(response).await,
+                json!({ "code": 404, "message": "Missing", "trace_id": TRACE_ID })
+            );
+        }
+
+        /// 401 responses deliberately never leak the trace id.
+        #[tokio::test]
+        async fn unauthorized_response_never_includes_trace_id() {
+            let response = with_trace(|| ApiError::Unauthorized("Nope".to_string()).into_response());
+
+            assert_eq!(read_json(response).await, json!({ "code": 401, "message": "Nope" }));
+        }
+
+        #[tokio::test]
+        async fn error_response_omits_trace_id_outside_a_traced_span() {
+            let response = ApiError::NotFound("Missing".to_string()).into_response();
+
+            assert_eq!(read_json(response).await, json!({ "code": 404, "message": "Missing" }));
+        }
+    }
 }

@@ -252,4 +252,58 @@ mod tests {
         let resp = service.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
+
+    #[tokio::test]
+    async fn wrong_username_with_matching_password_returns_401() {
+        let svc = make_service("user", "pass");
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, auth_header("admin:pass"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    /// RFC 7617: the user-id cannot contain a colon, but the password can.
+    #[tokio::test]
+    async fn password_containing_a_colon_is_accepted() {
+        let svc = make_service("user", "pa:ss");
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, auth_header("user:pa:ss"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = svc.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn inner_service_error_is_propagated_when_authorized() {
+        let svc = BasicAuthLayer::new("user", "pass").layer(tower::service_fn(|_req: Request<Body>| async {
+            Err::<Response, _>("boom")
+        }));
+        let req = Request::builder()
+            .uri("/")
+            .header(header::AUTHORIZATION, auth_header("user:pass"))
+            .body(Body::empty())
+            .unwrap();
+
+        assert_eq!(svc.oneshot(req).await.unwrap_err(), "boom");
+    }
+
+    /// Unauthorized requests never reach the inner service, so its error is
+    /// not surfaced either.
+    #[tokio::test]
+    async fn inner_service_error_is_not_surfaced_when_unauthorized() {
+        let svc = BasicAuthLayer::new("user", "pass").layer(tower::service_fn(|_req: Request<Body>| async {
+            Err::<Response, _>("boom")
+        }));
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+
+        let resp = svc.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
 }

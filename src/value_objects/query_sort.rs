@@ -128,4 +128,48 @@ mod tests {
         let sorts = QuerySorts::from("id");
         assert!(sorts.0.is_empty());
     }
+
+    #[test]
+    fn test_query_sort_new() {
+        let sort = QuerySort::new("name".to_string(), QuerySortDirection::Desc);
+        assert_eq!(sort.field, "name");
+        assert_eq!(sort.direction, QuerySortDirection::Desc);
+    }
+
+    #[test]
+    fn test_query_sort_default() {
+        let sort = QuerySort::default();
+        assert_eq!(sort.field, "");
+        assert_eq!(sort.direction, QuerySortDirection::Asc);
+    }
+
+    #[test]
+    fn test_filter_sorts_from_str_skips_parts_without_prefix() {
+        let sorts = QuerySorts::from("+id,name,,-created_at");
+        assert_eq!(
+            sorts,
+            QuerySorts(vec![
+                QuerySort::new("id".to_string(), QuerySortDirection::Asc),
+                QuerySort::new("created_at".to_string(), QuerySortDirection::Desc),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_filter_sorts_from_str_keeps_order_and_duplicates() {
+        let sorts = QuerySorts::from("-b,+a,-b");
+        let fields: Vec<_> = sorts.0.iter().map(|s| s.field.as_str()).collect();
+        assert_eq!(fields, ["b", "a", "b"]);
+    }
+
+    /// Fields are sliced after a one-byte ASCII prefix, so non-ASCII field
+    /// names must not panic.
+    #[test]
+    fn test_filter_sorts_from_str_with_non_ascii_field() {
+        let sorts = QuerySorts::from("-prénom,é");
+        assert_eq!(
+            sorts.0,
+            vec![QuerySort::new("prénom".to_string(), QuerySortDirection::Desc)]
+        );
+    }
 }

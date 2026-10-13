@@ -108,4 +108,44 @@ mod tests {
         let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
         assert!(matches!(err, ApiError::Unauthorized(_)));
     }
+
+    #[test]
+    fn test_extract_bearer_token_from_headers_missing_header() {
+        let headers = HeaderMap::new();
+        assert!(AccessToken::extract_bearer_token_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn test_extract_bearer_token_from_headers_trims_whitespace() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer    my_token   "));
+
+        let token = AccessToken::extract_bearer_token_from_headers(&headers).unwrap();
+        assert_eq!(token.token, "my_token");
+    }
+
+    /// A header value with opaque (non visible-ASCII) bytes cannot be turned
+    /// into a `&str` and must be ignored rather than panicking.
+    #[test]
+    fn test_extract_bearer_token_from_headers_non_ascii_value() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_bytes(b"Bearer \xfftoken").unwrap(),
+        );
+
+        assert!(AccessToken::extract_bearer_token_from_headers(&headers).is_none());
+    }
+
+    #[tokio::test]
+    async fn from_request_parts_returns_unauthorized_for_non_bearer_scheme() {
+        let req = axum::http::Request::builder()
+            .header(header::AUTHORIZATION, "Basic dXNlcjpwYXNz")
+            .body(())
+            .unwrap();
+        let (mut parts, _) = req.into_parts();
+
+        let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
+        assert_eq!(err, ApiError::Unauthorized("Missing or invalid token".to_string()));
+    }
 }

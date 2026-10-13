@@ -184,4 +184,36 @@ mod test {
         assert_eq!(r.limit, 50);
         assert_eq!(r.total, 1_234);
     }
+
+    #[test]
+    fn new_keeps_limit_at_exact_bounds() {
+        assert_eq!(
+            Pagination::new(1, PAGINATION_MIN_LIMIT, None).limit(),
+            PAGINATION_MIN_LIMIT
+        );
+        assert_eq!(
+            Pagination::new(1, PAGINATION_MAX_LIMIT, None).limit(),
+            PAGINATION_MAX_LIMIT
+        );
+        assert_eq!(Pagination::new(1, 100, Some(100)).limit(), 100);
+    }
+
+    #[test]
+    fn new_keeps_valid_page_and_limit() {
+        let p = Pagination::new(7, 42, None);
+        assert_eq!(p.page(), 7);
+        assert_eq!(p.limit(), 42);
+    }
+
+    #[test]
+    fn new_stores_given_max_limit() {
+        assert_eq!(Pagination::new(1, 50, Some(100)).max_limit, Some(100));
+        assert_eq!(Pagination::new(1, 50, None).max_limit, None);
+    }
+
+    #[test]
+    fn default_limit_is_within_bounds() {
+        let limit = Pagination::default().limit();
+        assert!((PAGINATION_MIN_LIMIT..=PAGINATION_MAX_LIMIT).contains(&limit));
+    }
 }

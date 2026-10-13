@@ -478,4 +478,205 @@ mod tests {
         let err = verifier.parse::<TestClaims>(&token).unwrap_err();
         assert!(matches!(err, JwtError::DecodingKeyError(_)));
     }
+
+    // Throwaway key pairs generated for these tests only (openssl genpkey).
+    const ES256_PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgD1kuNNc3Y10m9eSq
+u6atDpKwxcZqm7/iRU3v/qgy04WhRANCAATspDj53OxcTLwvL811a+wGOwflYv+P
+yCYkd+SedmeQGo7VsUjziFzBR9lBbhHNiBFD0Fao4Yg+4I0+0YsvvLSi
+-----END PRIVATE KEY-----";
+
+    const ES256_PUBLIC_KEY: &str = "-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7KQ4+dzsXEy8Ly/NdWvsBjsH5WL/
+j8gmJHfknnZnkBqO1bFI84hcwUfZQW4RzYgRQ9BWqOGIPuCNPtGLL7y0og==
+-----END PUBLIC KEY-----";
+
+    const ES384_PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
+MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDAGNhTZ9AuSwCQr/92X
+veoSSJLBt373/yVEqjbnlz/ZU3E2q6tre0wkbDnYYGOAmUOhZANiAASlHNP53R0U
+eOxhrQMPIL7ipSVmE7Oynk1/MBT2ozXqMnecqkBP5EfgzTah1r1KI9qxb7t5o54E
+Zaeo2LLT6g6H2qd3EmzmxmkWYcsY47Ff1+XCJdZVsHIXRfdFtyAQJQY=
+-----END PRIVATE KEY-----";
+
+    const ES384_PUBLIC_KEY: &str = "-----BEGIN PUBLIC KEY-----
+MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEpRzT+d0dFHjsYa0DDyC+4qUlZhOzsp5N
+fzAU9qM16jJ3nKpAT+RH4M02oda9SiPasW+7eaOeBGWnqNiy0+oOh9qndxJs5sZp
+FmHLGOOxX9flwiXWVbByF0X3RbcgECUG
+-----END PUBLIC KEY-----";
+
+    fn claims() -> TestClaims {
+        TestClaims {
+            sub: "user-42".to_string(),
+            exp: future_exp(60),
+        }
+    }
+
+    #[test]
+    fn test_jwt_init_and_round_trip_es256() {
+        let jwt = Jwt::init(
+            "ES256",
+            15,
+            7 * 24,
+            None,
+            Some(ES256_PRIVATE_KEY),
+            Some(ES256_PUBLIC_KEY),
+        )
+        .expect("init");
+        let token = jwt.generate(claims(), UtcDateTime::now()).expect("generate");
+
+        let parsed: TestClaims = jwt.parse(&token).expect("parse");
+        assert_eq!(parsed.sub, "user-42");
+    }
+
+    #[test]
+    fn test_jwt_init_and_round_trip_es384() {
+        let jwt = Jwt::init(
+            "ES384",
+            15,
+            7 * 24,
+            None,
+            Some(ES384_PRIVATE_KEY),
+            Some(ES384_PUBLIC_KEY),
+        )
+        .expect("init");
+        let token = jwt.generate(claims(), UtcDateTime::now()).expect("generate");
+
+        let parsed: TestClaims = jwt.parse(&token).expect("parse");
+        assert_eq!(parsed.sub, "user-42");
+    }
+
+    /// The keys are trimmed by `init`, so PEMs read from a file with a
+    /// trailing newline (or indented in a config) must still load.
+    #[test]
+    fn test_jwt_init_es256_trims_surrounding_whitespace_from_keys() {
+        let private_key = format!("\n  {ES256_PRIVATE_KEY}\n\n");
+        let public_key = format!("  {ES256_PUBLIC_KEY}\n");
+        let jwt = Jwt::init("ES256", 15, 7 * 24, None, Some(&private_key), Some(&public_key)).expect("init");
+
+        let token = jwt.generate(claims(), UtcDateTime::now()).expect("generate");
+        assert!(jwt.parse::<TestClaims>(&token).is_ok());
+    }
+
+    /// Drives the fallback arm of the decoding-key match: a valid private key
+    /// but no public key.
+    #[test]
+    fn test_jwt_init_es256_without_public_key_fails_at_decoding_stage() {
+        let err = Jwt::init("ES256", 15, 7 * 24, None, Some(ES256_PRIVATE_KEY), None).unwrap_err();
+        assert!(matches!(err, JwtError::DecodingKeyError(_)));
+    }
+
+    #[test]
+    fn test_jwt_init_es256_with_invalid_public_key_fails_at_decoding_stage() {
+        let err = Jwt::init("ES256", 15, 7 * 24, None, Some(ES256_PRIVATE_KEY), Some("not-a-pem")).unwrap_err();
+        assert!(matches!(err, JwtError::DecodingKeyError(_)));
+    }
+
+    #[test]
+    fn test_jwt_es256_token_is_rejected_by_another_public_key() {
+        let issuer = Jwt::init(
+            "ES256",
+            15,
+            7 * 24,
+            None,
+            Some(ES256_PRIVATE_KEY),
+            Some(ES256_PUBLIC_KEY),
+        )
+        .expect("init");
+        let mut verifier = issuer.clone();
+        // A P-384 public key cannot verify a P-256 signature.
+        verifier.set_decoding_key(ES384_PUBLIC_KEY).ok();
+
+        let token = issuer.generate(claims(), UtcDateTime::now()).expect("generate");
+        assert!(verifier.parse::<TestClaims>(&token).is_err());
+    }
+
+    #[test]
+    fn test_jwt_init_hs256_trims_surrounding_whitespace_from_secret() {
+        let issuer = Jwt::init("HS256", 15, 7 * 24, Some("  secret\n"), None, None).expect("init");
+        let verifier = Jwt::init("HS256", 15, 7 * 24, Some("secret"), None, None).expect("init");
+
+        let token = issuer.generate(claims(), UtcDateTime::now()).expect("generate");
+        assert!(verifier.parse::<TestClaims>(&token).is_ok());
+    }
+
+    #[test]
+    fn test_jwt_init_sets_lifetimes() {
+        let jwt = Jwt::init("HS384", 30, 48, Some("secret"), None, None).expect("init");
+        assert_eq!(jwt.access_lifetime(), 30);
+        assert_eq!(jwt.refresh_lifetime(), 48);
+    }
+
+    #[test]
+    fn test_jwt_generate_keeps_expiration_date() {
+        let jwt = Jwt::init("HS256", 15, 7 * 24, Some("secret"), None, None).expect("init");
+        let expired_at = UtcDateTime::from_rfc3339("2030-01-01T00:00:00Z").unwrap();
+
+        let token = jwt.generate(claims(), expired_at.clone()).expect("generate");
+        assert_eq!(token.expired_at, expired_at);
+    }
+
+    #[test]
+    fn test_jwt_parse_malformed_token_returns_decoding_error() {
+        let jwt = Jwt::init("HS256", 15, 7 * 24, Some("secret"), None, None).expect("init");
+        let token = AccessToken::new("not.a.jwt".to_string(), UtcDateTime::now());
+
+        let err = jwt.parse::<TestClaims>(&token).unwrap_err();
+        assert!(matches!(err, JwtError::DecodingKeyError(_)));
+    }
+
+    /// `Validation::new(self.algorithm)` pins the accepted algorithm: a token
+    /// signed with HS256 must not be accepted by an HS512 verifier, even with
+    /// the same secret.
+    #[test]
+    fn test_jwt_parse_rejects_token_signed_with_another_algorithm() {
+        let issuer = Jwt::init("HS256", 15, 7 * 24, Some("secret"), None, None).expect("init");
+        let verifier = Jwt::init("HS512", 15, 7 * 24, Some("secret"), None, None).expect("init");
+
+        let token = issuer.generate(claims(), UtcDateTime::now()).expect("generate");
+        let err = verifier.parse::<TestClaims>(&token).unwrap_err();
+        assert!(matches!(err, JwtError::DecodingKeyError(_)));
+    }
+
+    /// The default `Validation` requires an `exp` claim.
+    #[test]
+    fn test_jwt_parse_rejects_token_without_exp_claim() {
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        struct NoExp {
+            sub: String,
+        }
+
+        let jwt = Jwt::init("HS256", 15, 7 * 24, Some("secret"), None, None).expect("init");
+        let token = jwt
+            .generate(
+                NoExp {
+                    sub: "user".to_string(),
+                },
+                UtcDateTime::now(),
+            )
+            .expect("generate");
+
+        assert!(jwt.parse::<NoExp>(&token).is_err());
+    }
+
+    #[test]
+    fn test_jwt_error_display() {
+        assert_eq!(JwtError::ParseError("x".into()).to_string(), "Parse token error: x");
+        assert_eq!(
+            JwtError::GenerateError("x".into()).to_string(),
+            "Generate token error: x"
+        );
+        assert_eq!(
+            JwtError::InvalidAlgorithm("x".into()).to_string(),
+            "Invalid or unsupported algorithm: x"
+        );
+        assert_eq!(
+            JwtError::EncodingKeyError("x".into()).to_string(),
+            "Encoding key error: x"
+        );
+        assert_eq!(
+            JwtError::DecodingKeyError("x".into()).to_string(),
+            "Decoding key error: x"
+        );
+        assert_eq!(JwtError::ExpiredToken.to_string(), "Expired token");
+    }
 }

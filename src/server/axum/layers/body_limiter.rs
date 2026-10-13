@@ -221,4 +221,105 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(read_body(response).await, "ok");
     }
+
+    /// An unparseable `Content-Length` is not this layer's concern: the
+    /// request passes through untouched.
+    #[tokio::test]
+    async fn invalid_content_length_passes_through() {
+        let response = ok_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(CONTENT_LENGTH, "not-a-number")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rejection_is_a_json_api_error() {
+        let response = ok_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(CONTENT_LENGTH, "1000")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+        assert_eq!(
+            read_body(response).await,
+            r#"{"code":413,"message":"Payload too large"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn inner_service_error_is_propagated() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Err::<Response, _>("boom")
+            }));
+
+        let err = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap_err();
+        assert_eq!(err, "boom");
+    }
+
+    /// `BodyLimiterLayer` over `RequestBodyLimitLayer`: a chunked body (no
+    /// `Content-Length`) slips past the first layer but is capped by the second
+    /// as it is read. Each one is added with its own `Router::layer` call, which
+    /// maps the tower-http response body back to an axum `Body`.
+    #[tokio::test]
+    async fn stacked_with_request_body_limit_caps_chunked_bodies() {
+        use axum::Router;
+        use axum::routing::post;
+
+        let app: Router = Router::new()
+            .route("/", post(|body: String| async move { body }))
+            .layer(RequestBodyLimitLayer::new(8))
+            .layer(layer());
+
+        let chunks: Vec<Result<&'static str, Infallible>> = vec![Ok("12345"), Ok("67890")];
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .body(Body::from_stream(futures::stream::iter(chunks)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+        // A small chunked body still goes through.
+        let chunks: Vec<Result<&'static str, Infallible>> = vec![Ok("123"), Ok("45")];
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .body(Body::from_stream(futures::stream::iter(chunks)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(read_body(response).await, "12345");
+    }
 }

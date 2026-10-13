@@ -151,4 +151,39 @@ mod test {
         let new_datetime = datetime.add(TimeDelta::seconds(3600));
         assert_eq!(new_datetime.to_string(), "2024-08-28T13:00:00Z".to_owned());
     }
+
+    #[test]
+    fn from_rfc3339_converts_offset_to_utc() {
+        let datetime = UtcDateTime::from_rfc3339("2024-08-28T14:00:00+02:00").unwrap();
+        assert_eq!(datetime.to_string(), "2024-08-28T12:00:00Z");
+    }
+
+    #[test]
+    fn from_rfc3339_error_contains_the_invalid_input() {
+        let err = UtcDateTime::from_rfc3339("not-a-date").unwrap_err();
+        let UtcDateTimeError::InvalidDateTime(message) = &err;
+
+        assert!(message.ends_with(": not-a-date"), "message was: {message}");
+        assert!(err.to_string().starts_with("Invalid date time: "));
+    }
+
+    #[test]
+    fn display_truncates_sub_seconds() {
+        let datetime = UtcDateTime::from_rfc3339("2024-08-28T12:00:00.987654Z").unwrap();
+        assert_eq!(datetime.to_string(), "2024-08-28T12:00:00Z");
+    }
+
+    #[test]
+    fn add_negative_delta_goes_back_in_time() {
+        let datetime = UtcDateTime::from_rfc3339("2024-08-28T00:30:00Z").unwrap();
+        let earlier = datetime.add(TimeDelta::hours(-1));
+
+        assert_eq!(earlier.to_string(), "2024-08-27T23:30:00Z");
+        assert!(earlier < datetime);
+    }
+
+    #[test]
+    fn default_is_unix_epoch() {
+        assert_eq!(UtcDateTime::default().timestamp(), 0);
+    }
 }

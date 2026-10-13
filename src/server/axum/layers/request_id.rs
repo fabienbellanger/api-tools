@@ -58,4 +58,42 @@ mod tests {
             id_b.header_value().to_str().unwrap(),
         );
     }
+
+    /// End-to-end wiring with tower-http: the generated id is set on the
+    /// request and propagated to the response.
+    #[tokio::test]
+    async fn test_make_request_uuid_with_tower_http_layers() {
+        use std::convert::Infallible;
+        use tower::{ServiceBuilder, ServiceExt};
+        use tower_http::request_id::{PropagateRequestIdLayer, SetRequestIdLayer};
+
+        let svc = ServiceBuilder::new()
+            .layer(SetRequestIdLayer::new(REQUEST_ID_HEADER.clone(), MakeRequestUuid))
+            .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER.clone()))
+            .service(tower::service_fn(|req: Request<Body>| async move {
+                // The handler sees the id too.
+                assert!(req.headers().contains_key(REQUEST_ID_HEADER.clone()));
+                Ok::<_, Infallible>(axum::response::Response::new(Body::empty()))
+            }));
+
+        let response = svc
+            .clone()
+            .oneshot(Request::builder().body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let value = response.headers().get(REQUEST_ID_HEADER.clone()).unwrap();
+        assert!(Uuid::parse_str(value.to_str().unwrap()).is_ok());
+
+        // An incoming id is kept as is.
+        let response = svc
+            .oneshot(
+                Request::builder()
+                    .header(REQUEST_ID_HEADER.clone(), "my-id")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.headers().get(REQUEST_ID_HEADER.clone()).unwrap(), "my-id");
+    }
 }

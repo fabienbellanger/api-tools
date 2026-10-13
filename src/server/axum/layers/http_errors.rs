@@ -362,4 +362,97 @@ mod tests {
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(read_body(response).await, "upstream failure");
     }
+
+    fn service_returning(
+        status: StatusCode,
+        content_type: Option<&'static str>,
+        body: &'static [u8],
+    ) -> impl Service<Request<Body>, Response = Response, Error = Infallible> + Clone {
+        ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(move |_req: Request<Body>| async move {
+                let mut builder = Response::builder().status(status);
+                if let Some(content_type) = content_type {
+                    builder = builder.header(header::CONTENT_TYPE, content_type);
+                }
+                Ok::<_, Infallible>(builder.body(Body::from(body)).unwrap())
+            }))
+    }
+
+    async fn call(svc: impl Service<Request<Body>, Response = Response, Error = Infallible>) -> Response {
+        svc.oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+    }
+
+    /// A 422 body that is not valid UTF-8 cannot become a JSON message: it is
+    /// reported as a 500.
+    #[tokio::test]
+    async fn unprocessable_entity_with_invalid_utf8_body_returns_500() {
+        let response = call(service_returning(StatusCode::UNPROCESSABLE_ENTITY, None, b"\xff\xfe")).await;
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = read_body(response).await;
+        assert!(body.contains("\"code\":500"), "body was: {body}");
+    }
+
+    #[tokio::test]
+    async fn not_found_with_invalid_utf8_body_returns_500() {
+        let response = call(service_returning(StatusCode::NOT_FOUND, None, b"\xff\xfe")).await;
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn audio_and_video_content_types_short_circuit() {
+        for content_type in ["audio/mpeg", "video/mp4"] {
+            let response = call(service_returning(StatusCode::NOT_FOUND, Some(content_type), b"")).await;
+
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+            assert_eq!(response.headers().get(header::CONTENT_TYPE).unwrap(), content_type);
+            assert_eq!(read_body(response).await, "", "{content_type} must not be rewritten");
+        }
+    }
+
+    /// Other error statuses are not rewritten and keep their original body.
+    #[tokio::test]
+    async fn other_error_statuses_pass_through_unchanged() {
+        for status in [
+            StatusCode::BAD_REQUEST,
+            StatusCode::UNAUTHORIZED,
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ] {
+            let response = call(service_returning(status, Some("text/plain"), b"original")).await;
+
+            assert_eq!(response.status(), status);
+            assert_eq!(response.headers().get(header::CONTENT_TYPE).unwrap(), "text/plain");
+            assert_eq!(read_body(response).await, "original");
+        }
+    }
+
+    /// A 405 body is discarded, whatever the inner service put in it.
+    #[tokio::test]
+    async fn method_not_allowed_body_is_replaced() {
+        let response = call(service_returning(StatusCode::METHOD_NOT_ALLOWED, None, b"custom")).await;
+
+        assert_eq!(
+            read_body(response).await,
+            r#"{"code":405,"message":"Method not allowed"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn inner_service_error_is_propagated() {
+        let svc = ServiceBuilder::new()
+            .layer(layer())
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Err::<Response, _>("boom")
+            }));
+
+        let err = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap_err();
+        assert_eq!(err, "boom");
+    }
 }
