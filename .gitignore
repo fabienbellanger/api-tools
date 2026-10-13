@@ -22,3 +22,10 @@ target/
 
 # IDE
 .idea
+
+# Coverage (cargo tarpaulin)
+tarpaulin-report.html
+tarpaulin-report.json
+lcov.info
+cobertura.xml
+*.profraw

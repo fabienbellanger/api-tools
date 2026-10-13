@@ -350,4 +350,199 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
     }
+
+    mod recorded_metrics {
+        use super::*;
+        use axum::Router;
+        use axum::routing::get;
+        use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusRecorder};
+
+        /// A recorder local to the test thread: the global one is owned by
+        /// `handlers::prometheus` tests and cannot be installed twice.
+        fn recorder() -> PrometheusRecorder {
+            PrometheusBuilder::new().build_recorder()
+        }
+
+        /// Prometheus lines for `metric` (samples only, no `# TYPE` comments).
+        fn lines<'a>(rendered: &'a str, metric: &str) -> Vec<&'a str> {
+            rendered
+                .lines()
+                .filter(|line| line.starts_with(&format!("{metric}{{")))
+                .collect()
+        }
+
+        fn app() -> Router {
+            Router::new()
+                .route("/users/{id}", get(|| async { "ok" }))
+                .route("/metrics", get(|| async { "metrics" }))
+                .route_layer(PrometheusLayer {
+                    service_name: "test".into(),
+                })
+        }
+
+        fn call(router: Router, method: Method, uri: &str) -> StatusCode {
+            let request = Request::builder().method(method).uri(uri).body(Body::empty()).unwrap();
+            futures::executor::block_on(router.oneshot(request)).unwrap().status()
+        }
+
+        #[test]
+        fn middleware_records_counter_and_histogram_with_labels() {
+            let recorder = recorder();
+            let handle = recorder.handle();
+
+            metrics::with_local_recorder(&recorder, || {
+                assert_eq!(call(app(), Method::GET, "/users/1"), StatusCode::OK);
+                assert_eq!(call(app(), Method::GET, "/users/2"), StatusCode::OK);
+            });
+
+            let rendered = handle.render();
+            let counters = lines(&rendered, "http_requests_total");
+            assert_eq!(counters.len(), 1, "rendered: {rendered}");
+            let counter = counters[0];
+            assert!(counter.contains(r#"method="GET""#), "{counter}");
+            // The matched route is used, not the raw URI (bounded cardinality).
+            assert!(counter.contains(r#"path="/users/{id}""#), "{counter}");
+            assert!(counter.contains(r#"service="test""#), "{counter}");
+            assert!(counter.contains(r#"status="200""#), "{counter}");
+            assert!(counter.ends_with(" 2"), "{counter}");
+
+            assert!(
+                rendered.contains("http_requests_duration_seconds"),
+                "histogram must be recorded: {rendered}"
+            );
+        }
+
+        #[test]
+        fn middleware_labels_each_status_and_method_separately() {
+            let recorder = recorder();
+            let handle = recorder.handle();
+
+            metrics::with_local_recorder(&recorder, || {
+                call(app(), Method::GET, "/users/1");
+                // Method not allowed on an existing route.
+                call(app(), Method::POST, "/users/1");
+            });
+
+            let rendered = handle.render();
+            let counters = lines(&rendered, "http_requests_total");
+            assert_eq!(counters.len(), 2, "rendered: {rendered}");
+            assert!(
+                counters
+                    .iter()
+                    .any(|l| l.contains(r#"method="POST""#) && l.contains(r#"status="405""#)),
+                "rendered: {rendered}"
+            );
+        }
+
+        /// Without a router, the raw URI path is used as label.
+        #[test]
+        fn middleware_falls_back_to_uri_path_without_matched_path() {
+            let recorder = recorder();
+            let handle = recorder.handle();
+
+            let svc = ServiceBuilder::new()
+                .layer(PrometheusLayer {
+                    service_name: "test".into(),
+                })
+                .service(tower::service_fn(|_req: Request<Body>| async {
+                    Ok::<_, Infallible>(
+                        Response::builder()
+                            .status(StatusCode::IM_A_TEAPOT)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                }));
+
+            metrics::with_local_recorder(&recorder, || {
+                let request = Request::builder().uri("/raw/path?q=1").body(Body::empty()).unwrap();
+                futures::executor::block_on(svc.oneshot(request)).unwrap();
+            });
+
+            let rendered = handle.render();
+            let counters = lines(&rendered, "http_requests_total");
+            assert_eq!(counters.len(), 1, "rendered: {rendered}");
+            assert!(counters[0].contains(r#"path="/raw/path""#), "{}", counters[0]);
+            assert!(counters[0].contains(r#"status="418""#), "{}", counters[0]);
+        }
+
+        #[test]
+        fn middleware_does_not_record_metrics_endpoint() {
+            let recorder = recorder();
+            let handle = recorder.handle();
+
+            metrics::with_local_recorder(&recorder, || {
+                assert_eq!(call(app(), Method::GET, "/metrics"), StatusCode::OK);
+            });
+
+            let rendered = handle.render();
+            assert!(
+                lines(&rendered, "http_requests_total").is_empty(),
+                "rendered: {rendered}"
+            );
+        }
+
+        #[test]
+        fn middleware_propagates_inner_service_error() {
+            let svc = ServiceBuilder::new()
+                .layer(PrometheusLayer {
+                    service_name: "test".into(),
+                })
+                .service(tower::service_fn(|_req: Request<Body>| async {
+                    Err::<Response<Body>, _>("boom")
+                }));
+
+            let request = Request::builder().uri("/").body(Body::empty()).unwrap();
+            let err = futures::executor::block_on(svc.oneshot(request)).unwrap_err();
+            assert_eq!(err, "boom");
+        }
+
+        /// The collector publishes every documented host gauge, labeled by
+        /// service. A current-thread runtime keeps the spawned task on the
+        /// thread that holds the local recorder.
+        #[test]
+        fn collector_publishes_system_gauges() {
+            let recorder = recorder();
+            let handle = recorder.handle();
+
+            metrics::with_local_recorder(&recorder, || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap();
+                runtime.block_on(async {
+                    let collector = spawn_system_metrics_collector(
+                        "test".into(),
+                        vec![PathBuf::from("/")],
+                        Duration::from_secs(60),
+                    );
+                    // The first tick fires immediately.
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    collector.abort();
+                });
+            });
+
+            let rendered = handle.render();
+            for gauge in [
+                "system_cpu_usage",
+                "system_total_memory",
+                "system_used_memory",
+                "system_total_swap",
+                "system_used_swap",
+                "system_total_disks_space",
+                "system_used_disks_space",
+            ] {
+                let samples = lines(&rendered, gauge);
+                assert_eq!(samples.len(), 1, "{gauge} missing: {rendered}");
+                assert!(samples[0].contains(r#"service="test""#), "{}", samples[0]);
+            }
+
+            let total_memory: f64 = lines(&rendered, "system_total_memory")[0]
+                .rsplit(' ')
+                .next()
+                .unwrap()
+                .parse()
+                .unwrap();
+            assert!(total_memory > 0.0);
+        }
+    }
 }

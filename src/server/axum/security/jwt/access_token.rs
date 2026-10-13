@@ -39,14 +39,17 @@ impl AccessToken {
     }
 
     /// Extract bearer token from headers
+    ///
+    /// The header must be `Bearer <token>`. The scheme is case-insensitive (RFC 6750) and an empty
+    /// token is rejected.
     pub fn extract_bearer_token_from_headers(headers: &HeaderMap) -> Option<Self> {
         headers
             .get(header::AUTHORIZATION)
             .and_then(|h| h.to_str().ok())
-            .and_then(|h| {
-                let words = h.split("Bearer").collect::<Vec<&str>>();
-                words.get(1).map(|w| w.trim())
-            })
+            .and_then(|h| h.trim_start().split_once(' '))
+            .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
+            .map(|(_, token)| token.trim())
+            .filter(|token| !token.is_empty())
             .map(|token| AccessToken::new(token.to_string(), UtcDateTime::now()))
     }
 }
@@ -103,6 +106,98 @@ mod tests {
     #[tokio::test]
     async fn from_request_parts_returns_unauthorized_when_header_is_missing() {
         let req = axum::http::Request::builder().body(()).unwrap();
+        let (mut parts, _) = req.into_parts();
+
+        let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
+        assert!(matches!(err, ApiError::Unauthorized(_)));
+    }
+
+    #[test]
+    fn test_extract_bearer_token_from_headers_missing_header() {
+        let headers = HeaderMap::new();
+        assert!(AccessToken::extract_bearer_token_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn test_extract_bearer_token_from_headers_trims_whitespace() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer    my_token   "));
+
+        let token = AccessToken::extract_bearer_token_from_headers(&headers).unwrap();
+        assert_eq!(token.token, "my_token");
+    }
+
+    /// A header value with opaque (non visible-ASCII) bytes cannot be turned
+    /// into a `&str` and must be ignored rather than panicking.
+    #[test]
+    fn test_extract_bearer_token_from_headers_non_ascii_value() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_bytes(b"Bearer \xfftoken").unwrap(),
+        );
+
+        assert!(AccessToken::extract_bearer_token_from_headers(&headers).is_none());
+    }
+
+    #[tokio::test]
+    async fn from_request_parts_returns_unauthorized_for_non_bearer_scheme() {
+        let req = axum::http::Request::builder()
+            .header(header::AUTHORIZATION, "Basic dXNlcjpwYXNz")
+            .body(())
+            .unwrap();
+        let (mut parts, _) = req.into_parts();
+
+        let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();
+        assert_eq!(err, ApiError::Unauthorized("Missing or invalid token".to_string()));
+    }
+
+    fn extract(value: &'static str) -> Option<String> {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::AUTHORIZATION, HeaderValue::from_static(value));
+        AccessToken::extract_bearer_token_from_headers(&headers).map(|t| t.token)
+    }
+
+    #[test]
+    fn test_extract_bearer_token_rejects_empty_token() {
+        assert_eq!(extract("Bearer"), None);
+        assert_eq!(extract("Bearer "), None);
+        assert_eq!(extract("Bearer     "), None);
+    }
+
+    /// RFC 6750: the auth scheme is case-insensitive.
+    #[test]
+    fn test_extract_bearer_token_scheme_is_case_insensitive() {
+        assert_eq!(extract("bearer tok"), Some("tok".to_string()));
+        assert_eq!(extract("BEARER tok"), Some("tok".to_string()));
+    }
+
+    /// `Bearer` must be the scheme itself, not a substring of the header.
+    #[test]
+    fn test_extract_bearer_token_rejects_bearer_not_used_as_scheme() {
+        assert_eq!(extract("xBearer tok"), None);
+        assert_eq!(extract("Token Bearer tok"), None);
+        assert_eq!(extract("Bearertok"), None);
+        assert_eq!(extract("tok"), None);
+    }
+
+    #[test]
+    fn test_extract_bearer_token_ignores_leading_whitespace() {
+        assert_eq!(extract("  Bearer tok"), Some("tok".to_string()));
+    }
+
+    #[test]
+    fn test_extract_bearer_token_keeps_token_containing_bearer() {
+        assert_eq!(extract("Bearer aBearerb"), Some("aBearerb".to_string()));
+    }
+
+    /// An empty token is a client error (401), not a server one.
+    #[tokio::test]
+    async fn from_request_parts_returns_unauthorized_for_empty_bearer_token() {
+        let req = axum::http::Request::builder()
+            .header(header::AUTHORIZATION, "Bearer ")
+            .body(())
+            .unwrap();
         let (mut parts, _) = req.into_parts();
 
         let err = AccessToken::from_request_parts(&mut parts, &()).await.unwrap_err();

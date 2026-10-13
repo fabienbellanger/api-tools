@@ -196,4 +196,105 @@ mod tests {
 
         assert_eq!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(), "*");
     }
+
+    fn service(
+        allow_origin: &str,
+    ) -> impl tower::Service<Request<Body>, Response = Response, Error = Infallible> + Clone {
+        ServiceBuilder::new()
+            .layer(cors(CorsConfig {
+                allow_origin,
+                allow_methods: default_methods(),
+                allow_headers: default_headers(),
+            }))
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(ok_response())
+            }))
+    }
+
+    async fn get_with_origin(allow_origin: &str, origin: &str) -> Response {
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/")
+            .header(header::ORIGIN, origin)
+            .body(Body::empty())
+            .unwrap();
+        service(allow_origin).oneshot(req).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn cors_preflight_returns_allowed_methods_and_headers() {
+        let req = Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/")
+            .header(header::ORIGIN, "https://example.com")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+            .body(Body::empty())
+            .unwrap();
+        let resp = service("*").oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(), "*");
+        assert_eq!(
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_METHODS).unwrap(),
+            "GET,POST"
+        );
+        assert_eq!(
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_HEADERS).unwrap(),
+            "content-type"
+        );
+    }
+
+    /// Wildcard origin never allows credentials (forbidden by the spec).
+    #[tokio::test]
+    async fn cors_wildcard_origin_does_not_allow_credentials() {
+        let resp = get_with_origin("*", "https://example.com").await;
+
+        assert!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_CREDENTIALS).is_none());
+    }
+
+    /// A `*` mixed into a whitelist is dropped: only the explicit origins are
+    /// allowed.
+    #[tokio::test]
+    async fn cors_whitelist_ignores_wildcard_entry() {
+        let resp = get_with_origin("*,https://allowed.com", "https://allowed.com").await;
+        assert_eq!(
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(),
+            "https://allowed.com"
+        );
+
+        let resp = get_with_origin("*,https://allowed.com", "https://other.com").await;
+        assert!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+    }
+
+    #[tokio::test]
+    async fn cors_whitelist_skips_empty_entries() {
+        let resp = get_with_origin(",https://allowed.com,,", "https://allowed.com").await;
+        assert_eq!(
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(),
+            "https://allowed.com"
+        );
+    }
+
+    /// Origins are compared exactly: no trailing slash, port or scheme
+    /// normalization.
+    #[tokio::test]
+    async fn cors_whitelist_matches_origin_exactly() {
+        for origin in [
+            "http://allowed.com",
+            "https://allowed.com:8443",
+            "https://sub.allowed.com",
+        ] {
+            let resp = get_with_origin("https://allowed.com", origin).await;
+            assert!(
+                resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none(),
+                "{origin} must not be allowed"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn cors_only_commas_falls_back_to_any() {
+        let resp = get_with_origin(",,", "https://anywhere.com").await;
+        assert_eq!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap(), "*");
+    }
 }

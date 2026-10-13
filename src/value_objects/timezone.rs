@@ -70,4 +70,27 @@ mod test {
         let tz = Timezone::default();
         assert_eq!(tz.value, Europe__Paris);
     }
+
+    #[test]
+    fn try_from_str_accepts_other_zones() {
+        let tz = Timezone::try_from("America/New_York").unwrap();
+        assert_eq!(tz.to_string(), "America/New_York");
+
+        let tz = Timezone::try_from("UTC").unwrap();
+        assert_eq!(tz, Timezone::new(Tz::UTC));
+    }
+
+    #[test]
+    fn try_from_str_error_variant() {
+        let err = Timezone::try_from("Mars/Olympus").unwrap_err();
+        let TimezoneError::Invalid(message) = &err;
+
+        assert!(!message.is_empty());
+        assert!(err.to_string().starts_with("Invalid timezone: "));
+    }
+
+    #[test]
+    fn try_from_empty_str_fails() {
+        assert!(Timezone::try_from("").is_err());
+    }
 }

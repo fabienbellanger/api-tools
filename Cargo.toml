@@ -1,6 +1,6 @@
 [package]
 name = "api-tools"
-version = "0.9.1"
+version = "0.10.0"
 authors = ["Fabien Bellanger <valentil@gmail.com>"]
 description = "An API tools library for Rust"
 edition = "2024"
@@ -21,14 +21,14 @@ prometheus = ["dep:metrics", "dep:metrics-exporter-prometheus", "dep:sysinfo"]
 [dependencies]
 
 # Errors
-thiserror = "2.0.18"
+thiserror = "2.0.21"
 
 # API Server
 axum = "0.8.9"
 http-auth-basic = "0.3.7"
-hyper = "1.10.1"
+hyper = "1.12.0"
 tower = { version = "0.5.3", features = ["util"] }
-tower-http = { version = "0.7.0", features = ["cors", "request-id", "limit"] }
+tower-http = { version = "0.7.1", features = ["cors", "request-id", "limit"] }
 
 # Logs
 tracing = "0.1.44"
@@ -36,8 +36,8 @@ tracing-opentelemetry = "0.33.0"
 opentelemetry = "0.32.0"
 
 # Serde
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 serde_urlencoded = "0.7.1"
 
 # Metrics
@@ -45,22 +45,26 @@ metrics = { version = "0.24.6", optional = true }
 metrics-exporter-prometheus = { version = "0.18.3", optional = true }
 sysinfo = { version = "0.38.4", optional = true }
 
-bytes = "1.12.0"
-bytesize = "2.4.2"
+bytes = "1.12.1"
+bytesize = "2.7.0"
 chrono = { version = "0.4.45", features = [
     "clock",
     "std",
     "serde",
 ], default-features = false }
 chrono-tz = "0.10.4"
-futures = "0.3.32"
+futures = "0.3.34"
 mime = "0.3.17"
-tokio = { version = "1.52.3", features = ["full"] }
-uuid = { version = "1.23.4", features = ["v4", "serde"] }
+tokio = { version = "1.53.2", features = ["full"] }
+uuid = { version = "1.26.1", features = ["v4", "serde"] }
 jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
 
 [dev-dependencies]
 base64 = "0.22.1"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = [
+    "registry",
+    "std",
+] }
 
 [package.metadata.docs.rs]
 all-features = true

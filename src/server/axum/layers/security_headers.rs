@@ -192,4 +192,67 @@ mod tests {
 
         assert_eq!(response.headers().get(header::X_FRAME_OPTIONS).unwrap(), "DENY");
     }
+
+    #[tokio::test]
+    async fn inner_status_body_and_headers_are_preserved() {
+        let svc = ServiceBuilder::new()
+            .layer(SecurityHeadersLayer::new(SecurityHeadersConfig::default()))
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::CREATED)
+                        .header("x-custom", "value")
+                        .body(Body::from("created"))
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(response.headers().get("x-custom").unwrap(), "value");
+        assert!(response.headers().get(header::CONTENT_SECURITY_POLICY).is_some());
+        let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+        assert_eq!(&body[..], b"created");
+    }
+
+    /// Error responses get the security headers too.
+    #[tokio::test]
+    async fn headers_are_added_to_error_responses() {
+        let svc = ServiceBuilder::new()
+            .layer(SecurityHeadersLayer::new(SecurityHeadersConfig::default()))
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+            }));
+
+        let response = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.headers().get(header::X_FRAME_OPTIONS).unwrap(), "DENY");
+    }
+
+    #[tokio::test]
+    async fn inner_service_error_is_propagated() {
+        let svc = ServiceBuilder::new()
+            .layer(SecurityHeadersLayer::new(SecurityHeadersConfig::default()))
+            .service(tower::service_fn(|_req: Request<Body>| async {
+                Err::<Response, _>("boom")
+            }));
+
+        let err = svc
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap_err();
+        assert_eq!(err, "boom");
+    }
 }
