@@ -21,7 +21,7 @@ make lint
 make lint-audit         # adds cargo-audit
 make check              # lint-audit + test
 
-# MSRV (currently 1.88, declared in Cargo.toml)
+# MSRV (currently 1.89, declared in Cargo.toml)
 make verify-msrv
 
 # Release prep

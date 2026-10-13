@@ -160,6 +160,7 @@ impl Jwt {
     /// # Errors
     ///
     /// Returns [`JwtError::EncodingKeyError`] if the key cannot be parsed for the current algorithm.
+    /// Returns [`JwtError::InvalidAlgorithm`] for an algorithm this crate does not support yet.
     pub fn set_encoding_key(&mut self, secret: &str) -> Result<(), JwtError> {
         let key = match self.algorithm {
             Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(secret.as_bytes()),
@@ -171,6 +172,8 @@ impl Jwt {
                 .map_err(|err| JwtError::EncodingKeyError(err.to_string()))?,
             Algorithm::EdDSA => EncodingKey::from_ed_pem(secret.as_bytes())
                 .map_err(|err| JwtError::EncodingKeyError(err.to_string()))?,
+            // `Algorithm` is `#[non_exhaustive]` since jsonwebtoken 11
+            algorithm => return Err(JwtError::InvalidAlgorithm(format!("{algorithm:?}"))),
         };
 
         self.encoding_key = Some(key);
@@ -183,6 +186,7 @@ impl Jwt {
     /// # Errors
     ///
     /// Returns [`JwtError::DecodingKeyError`] if the key cannot be parsed for the current algorithm.
+    /// Returns [`JwtError::InvalidAlgorithm`] for an algorithm this crate does not support yet.
     pub fn set_decoding_key(&mut self, secret: &str) -> Result<(), JwtError> {
         let key = match self.algorithm {
             Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => DecodingKey::from_secret(secret.as_bytes()),
@@ -194,6 +198,8 @@ impl Jwt {
                 .map_err(|err| JwtError::DecodingKeyError(err.to_string()))?,
             Algorithm::EdDSA => DecodingKey::from_ed_pem(secret.as_bytes())
                 .map_err(|err| JwtError::DecodingKeyError(err.to_string()))?,
+            // `Algorithm` is `#[non_exhaustive]` since jsonwebtoken 11
+            algorithm => return Err(JwtError::InvalidAlgorithm(format!("{algorithm:?}"))),
         };
 
         self.decoding_key = Some(key);

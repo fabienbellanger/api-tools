@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- [Breaking] Update MSRV to Rust 1.89 (required by `uuid` `1.28`).
+- Update `jsonwebtoken` (`10.4.0` → `11.1.0`). Its `Algorithm` enum is now
+  `#[non_exhaustive]`: `Jwt::set_encoding_key` and `Jwt::set_decoding_key` return
+  `JwtError::InvalidAlgorithm` for an algorithm this crate does not support yet.
+  No `jsonwebtoken` type is exposed in this crate's public API.
+- Pure constructors and getters are now `#[must_use]` (and `const fn` where
+  possible). Ignoring their return value now raises a warning in caller code.
+- Enable strict lints in `Cargo.toml` (clippy `pedantic`, `nursery`, `cargo` and a
+  few `restriction` lints, `missing_docs`, `unsafe_code = "forbid"`). The whole
+  public API is now documented, including `# Errors` sections. `make lint` also
+  lints tests and doctests (`--all-targets`).
 - `QuerySorts::from` now trims each part and reads a field **without prefix as
   ascending** (`id` = `+id`); it used to be silently ignored. In a query string a
   raw `+` is decoded as a space, so `?sort=+id,-name` used to drop `id`; it now
@@ -45,7 +56,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `2.7.0`), `futures` (`0.3.32` → `0.3.34`), `hyper` (`1.10.1` → `1.12.0`),
   `serde` (`1.0.228` → `1.0.229`), `serde_json` (`1.0.150` → `1.0.154`),
   `thiserror` (`2.0.18` → `2.0.21`), `tokio` (`1.52.3` → `1.53.2`), `tower-http`
-  (`0.7.0` → `0.7.1`), `uuid` (`1.23.4` → `1.26.1`).
+  (`0.7.0` → `0.7.1`), `uuid` (`1.23.4` → `1.28.0`), `opentelemetry` (`0.32.0` →
+  `0.33.1`), `tracing-opentelemetry` (`0.33.0` → `0.34.0`), `base64` (dev,
+  `0.22.1` → `0.23.1`).
 - Add `tracing-subscriber` (`0.3.23`) as a dev dependency, to test the logged
   events and the `trace_id` in error responses.
 
