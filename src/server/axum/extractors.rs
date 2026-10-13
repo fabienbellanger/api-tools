@@ -37,45 +37,49 @@ where
     type Rejection = (StatusCode, ApiError);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<T>::from_request_parts(parts, state).await {
-            Ok(value) => Ok(Self(value.0)),
-            Err(rejection) => {
-                let (status, body) = match rejection {
-                    PathRejection::FailedToDeserializePathParams(inner) => {
-                        let mut status = StatusCode::BAD_REQUEST;
+        axum::extract::Path::<T>::from_request_parts(parts, state)
+            .await
+            .map(|value| Self(value.0))
+            .map_err(path_rejection_to_api_error)
+    }
+}
 
-                        let kind = inner.into_kind();
-                        let body = match &kind {
-                            ErrorKind::WrongNumberOfParameters { .. } => ApiError::BadRequest(kind.to_string()),
-                            ErrorKind::ParseErrorAtKey { .. } => ApiError::BadRequest(kind.to_string()),
-                            ErrorKind::ParseErrorAtIndex { .. } => ApiError::BadRequest(kind.to_string()),
-                            ErrorKind::ParseError { .. } => ApiError::BadRequest(kind.to_string()),
-                            ErrorKind::InvalidUtf8InPathParam { .. } => ApiError::BadRequest(kind.to_string()),
-                            ErrorKind::UnsupportedType { .. } => {
-                                // this error is caused by the programmer using an unsupported type
-                                // (such as nested maps) so respond with `500` instead
-                                status = StatusCode::INTERNAL_SERVER_ERROR;
-                                ApiError::InternalServerError(kind.to_string())
-                            }
-                            ErrorKind::Message(msg) => ApiError::BadRequest(msg.clone()),
-                            _ => ApiError::BadRequest(format!("Unhandled deserialization error: {kind}")),
-                        };
+/// Convert a `Path` rejection into a status code and an `ApiError`
+///
+/// Not generic, so it is compiled once and not for every `Path<T>`.
+fn path_rejection_to_api_error(rejection: PathRejection) -> (StatusCode, ApiError) {
+    match rejection {
+        PathRejection::FailedToDeserializePathParams(inner) => {
+            let mut status = StatusCode::BAD_REQUEST;
 
-                        (status, body)
-                    }
-                    PathRejection::MissingPathParams(error) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        ApiError::InternalServerError(error.to_string()),
-                    ),
-                    _ => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        ApiError::InternalServerError(format!("Unhandled path rejection: {rejection}")),
-                    ),
-                };
+            let kind = inner.into_kind();
+            let body = match &kind {
+                ErrorKind::WrongNumberOfParameters { .. } => ApiError::BadRequest(kind.to_string()),
+                ErrorKind::ParseErrorAtKey { .. } => ApiError::BadRequest(kind.to_string()),
+                ErrorKind::ParseErrorAtIndex { .. } => ApiError::BadRequest(kind.to_string()),
+                ErrorKind::ParseError { .. } => ApiError::BadRequest(kind.to_string()),
+                ErrorKind::InvalidUtf8InPathParam { .. } => ApiError::BadRequest(kind.to_string()),
+                ErrorKind::DeserializeError { .. } => ApiError::BadRequest(kind.to_string()),
+                ErrorKind::UnsupportedType { .. } => {
+                    // this error is caused by the programmer using an unsupported type
+                    // (such as nested maps) so respond with `500` instead
+                    status = StatusCode::INTERNAL_SERVER_ERROR;
+                    ApiError::InternalServerError(kind.to_string())
+                }
+                ErrorKind::Message(msg) => ApiError::BadRequest(msg.clone()),
+                _ => ApiError::BadRequest(format!("Unhandled deserialization error: {kind}")),
+            };
 
-                Err((status, body))
-            }
+            (status, body)
         }
+        PathRejection::MissingPathParams(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::InternalServerError(error.to_string()),
+        ),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::InternalServerError(format!("Unhandled path rejection: {rejection}")),
+        ),
     }
 }
 
@@ -423,5 +427,131 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(read_body(response).await, "hello world&co");
+    }
+
+    #[tokio::test]
+    async fn path_extractor_returns_400_on_single_value_type_mismatch() {
+        let app: Router = Router::new().route("/users/{id}", get(|Path(id): Path<u64>| async move { id.to_string() }));
+
+        let response = app
+            .oneshot(Request::builder().uri("/users/abc").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = read_body(response).await;
+        assert!(body.contains("Cannot parse `abc` to a `u64`"), "body was: {body}");
+    }
+
+    #[tokio::test]
+    async fn path_extractor_returns_400_on_invalid_utf8() {
+        let app: Router = Router::new().route("/users/{name}", get(|Path(name): Path<String>| async move { name }));
+
+        let response = app
+            .oneshot(Request::builder().uri("/users/%FF").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = read_body(response).await;
+        assert!(body.contains("Invalid UTF-8 in `name`"), "body was: {body}");
+    }
+
+    /// A custom deserialization error on a named param keeps its message and
+    /// is not reported as an unhandled error.
+    #[tokio::test]
+    async fn path_extractor_returns_400_on_custom_deserialize_error_at_key() {
+        #[derive(Deserialize)]
+        #[serde(try_from = "u64")]
+        struct Even(#[allow(dead_code)] u64);
+
+        impl TryFrom<u64> for Even {
+            type Error = String;
+
+            fn try_from(value: u64) -> Result<Self, Self::Error> {
+                if value % 2 == 0 {
+                    Ok(Self(value))
+                } else {
+                    Err("must be even".to_string())
+                }
+            }
+        }
+
+        #[derive(Deserialize)]
+        struct Params {
+            #[allow(dead_code)]
+            id: Even,
+        }
+
+        let app: Router = Router::new().route("/users/{id}", get(|_: Path<Params>| async { "ok" }));
+
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/users/3").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = read_body(response).await;
+        assert!(body.contains("must be even"), "body was: {body}");
+        assert!(!body.contains("Unhandled"), "body was: {body}");
+
+        let response = app
+            .oneshot(Request::builder().uri("/users/4").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// A string param whose custom `Deserialize` rejects the value reports
+    /// the key, the value and the message.
+    #[tokio::test]
+    async fn path_extractor_returns_400_on_deserialize_error_at_key() {
+        struct Lowercase;
+
+        impl<'de> Deserialize<'de> for Lowercase {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                struct LowercaseVisitor;
+
+                impl serde::de::Visitor<'_> for LowercaseVisitor {
+                    type Value = Lowercase;
+
+                    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        f.write_str("a lowercase string")
+                    }
+
+                    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Lowercase, E> {
+                        if value.chars().all(|c| c.is_ascii_lowercase()) {
+                            Ok(Lowercase)
+                        } else {
+                            Err(E::custom("must be lowercase"))
+                        }
+                    }
+                }
+
+                deserializer.deserialize_str(LowercaseVisitor)
+            }
+        }
+
+        #[derive(Deserialize)]
+        struct Params {
+            #[allow(dead_code)]
+            slug: Lowercase,
+        }
+
+        let app: Router = Router::new().route("/posts/{slug}", get(|_: Path<Params>| async { "ok" }));
+
+        let response = app
+            .oneshot(Request::builder().uri("/posts/Hello").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = read_body(response).await;
+        assert!(
+            body.contains("Cannot parse `slug` with value `Hello`: must be lowercase"),
+            "body was: {body}"
+        );
+        assert!(!body.contains("Unhandled"), "body was: {body}");
     }
 }

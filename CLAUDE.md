@@ -95,6 +95,12 @@ callers can compose the level of guarantee they need:
    feature of `tower-http` is enabled). Stack it **under** `BodyLimiterLayer` for a hard cap that
    also covers chunked bodies (enforced as the body is read; tower-http's plain `413`).
 
+`BodyLimiterMiddleware` is generic over the inner response body (any `HttpBody<Data = Bytes>`)
+and maps it back to an axum `Body` (no allocation when it already is one). This is what lets both
+layers live in a single `ServiceBuilder` applied to a `Router`: `RequestBodyLimit` returns
+`Response<ResponseBody<Body>>`, which a `Response = Response<Body>` bound rejected (0.9.1 bug).
+Keep the bound generic; the module doctest builds the stack on a real `Router` to pin it.
+
 ## Testing Conventions
 
 - Tests live next to the code (`#[cfg(test)] mod tests` in the same file). No separate `tests/`

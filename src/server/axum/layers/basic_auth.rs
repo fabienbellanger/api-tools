@@ -62,45 +62,44 @@ where
     }
 
     fn call(&mut self, request: Request<Body>) -> Self::Future {
-        let auth = request
-            .headers()
-            .get(header::AUTHORIZATION)
-            .and_then(|h| h.to_str().ok())
-            .map(str::to_string);
-        let username = self.username.clone();
-        let password = self.password.clone();
+        let authorized = is_authorized(
+            request.headers().get(header::AUTHORIZATION),
+            &self.username,
+            &self.password,
+        );
 
         let future = self.inner.call(request);
         Box::pin(async move {
-            let mut response = Response::default();
-
-            let ok = match auth {
-                None => false,
-                Some(auth) => match Credentials::from_header(auth) {
-                    Err(_) => false,
-                    Ok(cred) => cred.user_id == username && cred.password == password,
-                },
-            };
-            response = match ok {
-                true => future.await?,
-                false => {
-                    let (mut parts, _body) = response.into_parts();
-                    let msg = body_from_parts(
-                        &mut parts,
-                        StatusCode::UNAUTHORIZED,
-                        "Unauthorized",
-                        Some(vec![(
-                            header::WWW_AUTHENTICATE,
-                            HeaderValue::from_static("basic realm=RESTRICTED"),
-                        )]),
-                    );
-                    Response::from_parts(parts, Body::from(msg))
-                }
-            };
-
-            Ok(response)
+            if authorized {
+                future.await
+            } else {
+                Ok(unauthorized_response())
+            }
         })
     }
+}
+
+/// Check the `Authorization` header against the expected credentials
+fn is_authorized(header: Option<&HeaderValue>, username: &str, password: &str) -> bool {
+    header
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| Credentials::from_header(h.to_string()).ok())
+        .is_some_and(|cred| cred.user_id == username && cred.password == password)
+}
+
+/// `401 Unauthorized` JSON response with the `WWW-Authenticate` challenge
+fn unauthorized_response() -> Response {
+    let (mut parts, _body) = Response::new(Body::empty()).into_parts();
+    let msg = body_from_parts(
+        &mut parts,
+        StatusCode::UNAUTHORIZED,
+        "Unauthorized",
+        Some(vec![(
+            header::WWW_AUTHENTICATE,
+            HeaderValue::from_static("basic realm=RESTRICTED"),
+        )]),
+    );
+    Response::from_parts(parts, Body::from(msg))
 }
 
 #[cfg(test)]

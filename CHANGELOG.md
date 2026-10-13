@@ -18,6 +18,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
+## [Unreleased]
+
+### Changed
+
+- `QuerySorts::from` now trims each part and reads a field **without prefix as
+  ascending** (`id` = `+id`); it used to be silently ignored. In a query string a
+  raw `+` is decoded as a space, so `?sort=+id,-name` used to drop `id`; it now
+  sorts on both fields. Empty fields (`+`, `-`) are ignored.
+- `AccessToken::extract_bearer_token_from_headers` (and the `AccessToken`
+  extractor) now require the `Bearer` scheme followed by a non-empty token. The
+  scheme is case-insensitive (RFC 6750). `Authorization: Bearer` with no token
+  used to produce an empty token, which ended up as a `500` once parsed; it is now
+  rejected with a `401`. Headers where `Bearer` is not the scheme
+  (`Token Bearer x`) are rejected.
+- `Pagination::new` now clamps `max_limit` between `PAGINATION_MIN_LIMIT` and
+  `PAGINATION_MAX_LIMIT`, as documented. A `max_limit` below the minimum used to
+  give a `limit` below `PAGINATION_MIN_LIMIT`.
+- `Pagination::set_max_limit` now lowers the current `limit` when it exceeds the
+  new max limit. It used to only store the value.
+- The `Path` extractor now handles axum's `ErrorKind::DeserializeError` (a custom
+  `Deserialize` error on a named param) explicitly. The `400` message is now
+  ``Cannot parse `key` with value `value`: message`` instead of being prefixed
+  with `Unhandled deserialization error:`.
+
+### Fixed
+
+- `BodyLimiterLayer` can now be stacked over `RequestBodyLimitLayer` in a single
+  `ServiceBuilder`, as shown in the module docs. It used to fail to compile once
+  applied to a `Router`, because `RequestBodyLimit` returns a
+  `Response<ResponseBody<Body>>` and `BodyLimiterMiddleware` only accepted an
+  inner `Response<Body>`. The middleware now accepts any inner response body
+  and turns it back into an axum `Body`.
+
 ## `0.9.1` (2026-07-04) [CURRENT]
 
 ### Added

@@ -13,11 +13,7 @@ pub static REQUEST_ID_HEADER: LazyLock<HeaderName> = LazyLock::new(|| HeaderName
 
 impl MakeRequestId for MakeRequestUuid {
     fn make_request_id<B>(&mut self, _request: &Request<B>) -> Option<RequestId> {
-        let id = Uuid::new_v4().to_string().parse();
-        match id {
-            Ok(id) => Some(RequestId::new(id)),
-            _ => None,
-        }
+        Uuid::new_v4().to_string().parse().ok().map(RequestId::new)
     }
 }
 

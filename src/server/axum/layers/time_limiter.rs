@@ -158,30 +158,31 @@ where
 
     fn call(&mut self, request: Request<Body>) -> Self::Future {
         let now = Local::now().format("%H:%M").to_string();
-        let is_authorized = !self.time_slots.contains(&now);
-        let time_slots = self.time_slots.clone();
+        let unavailable = self
+            .time_slots
+            .contains(&now)
+            .then(|| unavailable_response(&self.time_slots));
 
         let future = self.inner.call(request);
         Box::pin(async move {
-            let mut response = Response::default();
-
-            response = match is_authorized {
-                true => future.await?,
-                false => {
-                    let (mut parts, _body) = response.into_parts();
-                    let msg = body_from_parts(
-                        &mut parts,
-                        StatusCode::SERVICE_UNAVAILABLE,
-                        format!("Service unavailable during these times: {time_slots}").as_str(),
-                        None,
-                    );
-                    Response::from_parts(parts, Body::from(msg))
-                }
-            };
-
-            Ok(response)
+            match unavailable {
+                None => future.await,
+                Some(response) => Ok(response),
+            }
         })
     }
+}
+
+/// `503 Service Unavailable` JSON response listing the time slots
+fn unavailable_response(time_slots: &TimeSlots) -> Response {
+    let (mut parts, _body) = Response::new(Body::empty()).into_parts();
+    let msg = body_from_parts(
+        &mut parts,
+        StatusCode::SERVICE_UNAVAILABLE,
+        format!("Service unavailable during these times: {time_slots}").as_str(),
+        None,
+    );
+    Response::from_parts(parts, Body::from(msg))
 }
 
 #[cfg(test)]

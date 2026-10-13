@@ -22,17 +22,23 @@
 //! use api_tools::server::axum::layers::body_limiter::{
 //!     BodyLimiterConfig, BodyLimiterLayer, RequestBodyLimitLayer,
 //! };
+//! use axum::{Router, routing::post};
 //! use tower::ServiceBuilder;
 //!
 //! const MAX: usize = 2 * 1024 * 1024; // 2 MiB
 //!
-//! let _layers = ServiceBuilder::new()
-//!     .layer(BodyLimiterLayer::new(&BodyLimiterConfig { body_max_size: MAX }))
-//!     .layer(RequestBodyLimitLayer::new(MAX));
+//! let app: Router = Router::new()
+//!     .route("/upload", post(|body: String| async move { body }))
+//!     .layer(
+//!         ServiceBuilder::new()
+//!             .layer(BodyLimiterLayer::new(&BodyLimiterConfig { body_max_size: MAX }))
+//!             .layer(RequestBodyLimitLayer::new(MAX)),
+//!     );
 //! ```
 
 use crate::server::axum::response::ApiError;
-use axum::body::Body;
+use axum::BoxError;
+use axum::body::{Body, HttpBody};
 use axum::http::Request;
 use axum::http::header::CONTENT_LENGTH;
 use axum::response::{IntoResponse, Response};
@@ -78,12 +84,18 @@ pub struct BodyLimiterMiddleware<S> {
     config: BodyLimiterConfig,
 }
 
-impl<S> Service<Request<Body>> for BodyLimiterMiddleware<S>
+/// The inner response body is generic so that the layer can wrap services that
+/// do not return an axum `Body`, such as [`RequestBodyLimitLayer`] (whose body is
+/// `ResponseBody<Body>`). It is converted back to an axum `Body`, which does not
+/// allocate when it already is one.
+impl<S, ResBody> Service<Request<Body>> for BodyLimiterMiddleware<S>
 where
-    S: Service<Request<Body>, Response = Response> + Send + 'static,
+    S: Service<Request<Body>, Response = axum::http::Response<ResBody>> + Send + 'static,
     S::Future: Send + 'static,
+    ResBody: HttpBody<Data = bytes::Bytes> + Send + 'static,
+    ResBody::Error: Into<BoxError>,
 {
-    type Response = S::Response;
+    type Response = Response;
     type Error = S::Error;
     // `BoxFuture` is a type alias for `Pin<Box<dyn Future + Send + 'a>>`
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
@@ -108,7 +120,8 @@ where
             return Box::pin(async move { Ok(ApiError::PayloadTooLarge.into_response()) });
         }
 
-        Box::pin(self.inner.call(request))
+        let future = self.inner.call(request);
+        Box::pin(async move { Ok(future.await?.map(Body::new)) })
     }
 }
 
@@ -279,10 +292,9 @@ mod tests {
         assert_eq!(err, "boom");
     }
 
-    /// `BodyLimiterLayer` over `RequestBodyLimitLayer`: a chunked body (no
-    /// `Content-Length`) slips past the first layer but is capped by the second
-    /// as it is read. Each one is added with its own `Router::layer` call, which
-    /// maps the tower-http response body back to an axum `Body`.
+    /// The documented stack: `BodyLimiterLayer` over `RequestBodyLimitLayer` in
+    /// a single `ServiceBuilder`. A chunked body (no `Content-Length`) slips past
+    /// the first layer but is capped by the second as it is read.
     #[tokio::test]
     async fn stacked_with_request_body_limit_caps_chunked_bodies() {
         use axum::Router;
@@ -290,8 +302,28 @@ mod tests {
 
         let app: Router = Router::new()
             .route("/", post(|body: String| async move { body }))
-            .layer(RequestBodyLimitLayer::new(8))
-            .layer(layer());
+            .layer(
+                ServiceBuilder::new()
+                    .layer(layer())
+                    .layer(RequestBodyLimitLayer::new(8)),
+            );
+
+        // A `Content-Length` over the limit is still rejected by the outer
+        // layer with a JSON body.
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .header(CONTENT_LENGTH, "9")
+                    .body(Body::from("123456789"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(read_body(response).await.contains("\"code\":413"));
 
         let chunks: Vec<Result<&'static str, Infallible>> = vec![Ok("12345"), Ok("67890")];
         let response = app
