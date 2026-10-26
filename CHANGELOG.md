@@ -18,7 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.10.0` (2026-10-14) [CURRENT]
+## `0.10.1` (2026-10-26) [CURRENT]
+
+### Changed
+
+- Update dependencies: `tokio` (`1.53.2` → `1.54.1`), `uuid` (`1.28.0` → `1.29.0`).
+
+### Fixed
+
+- `TimeLimiterLayer`: the current time is now compared to the second (`HH:MM:SS`), slot bounds being
+  read as `HH:MM:00`. With `05:00-06:00`, requests were rejected until `06:00:59`; they are now
+  accepted from `06:00:01`.
+
+## `0.10.0` (2026-10-14)
 
 ### Changed
 
