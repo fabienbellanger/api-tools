@@ -36,31 +36,51 @@ impl TimeSlots {
 
     /// Check if a time is in the time slots list
     ///
+    /// `time` is `HH:MM:SS` (or `HH:MM`, read as `HH:MM:00`). Slot bounds are
+    /// read as `HH:MM:00` and are inclusive: `05:00-06:00` covers `05:00:00`
+    /// to `06:00:00`.
+    ///
     /// # Example
     /// ```
     /// use api_tools::server::axum::layers::time_limiter::TimeSlots;
     ///
     /// let time_slots: TimeSlots = "08:00-12:00,13:00-17:00".into();
-    /// let now = "09:00";
+    /// let now = "09:00:00";
     /// assert_eq!(time_slots.contains(now), true);
     ///
-    /// let now = "08:00";
+    /// let now = "08:00:00";
     /// assert_eq!(time_slots.contains(now), true);
+    ///
+    /// let now = "17:00:00";
+    /// assert_eq!(time_slots.contains(now), true);
+    ///
+    /// let now = "17:00:01";
+    /// assert_eq!(time_slots.contains(now), false);
+    ///
+    /// let now = "12:30:00";
+    /// assert_eq!(time_slots.contains(now), false);
     ///
     /// let now = "17:00";
     /// assert_eq!(time_slots.contains(now), true);
     ///
-    /// let now = "12:30";
-    /// assert_eq!(time_slots.contains(now), false);
-    ///
     /// let time_slots: TimeSlots = "".into();
-    /// let now = "09:00";
+    /// let now = "09:00:00";
     /// assert_eq!(time_slots.contains(now), false);
     /// ```
     #[must_use]
     pub fn contains(&self, time: &str) -> bool {
-        self.0.iter().any(|slot| *slot.start <= *time && *time <= *slot.end)
+        // `"05:00" <= "05:00:00"`: a shorter prefix sorts first, so the start
+        // bound already behaves as `HH:MM:00`.
+        self.0
+            .iter()
+            .any(|slot| *slot.start <= *time && is_at_or_before_end(time, &slot.end))
     }
+}
+
+/// `time <= end:00`, without allocating `end:00` on every request
+fn is_at_or_before_end(time: &str, end: &str) -> bool {
+    let (hours_minutes, seconds) = time.split_at_checked(5).unwrap_or((time, ""));
+    hours_minutes < end || (hours_minutes == end && matches!(seconds, "" | ":00"))
 }
 
 impl Display for TimeSlots {
@@ -164,7 +184,7 @@ where
     }
 
     fn call(&mut self, request: Request<Body>) -> Self::Future {
-        let now = Local::now().format("%H:%M").to_string();
+        let now = Local::now().format("%H:%M:%S").to_string();
         let unavailable = self
             .time_slots
             .contains(&now)
@@ -238,10 +258,25 @@ mod tests {
     #[test]
     fn timeslots_contains_at_exact_borders() {
         let slots: TimeSlots = "08:00-12:00".into();
-        assert!(slots.contains("08:00"), "lower bound is inclusive");
-        assert!(slots.contains("12:00"), "upper bound is inclusive");
+        assert!(slots.contains("08:00:00"), "lower bound is inclusive");
+        assert!(slots.contains("12:00:00"), "upper bound is inclusive");
+        assert!(!slots.contains("07:59:59"));
+        assert!(!slots.contains("12:00:01"));
+        assert!(slots.contains("08:00"));
+        assert!(slots.contains("12:00"));
         assert!(!slots.contains("07:59"));
         assert!(!slots.contains("12:01"));
+    }
+
+    /// Regression: with `05:00-06:00`, a request at 06:00:14 must not be
+    /// rejected (it was when the current time was truncated to `06:00`).
+    #[test]
+    fn timeslots_seconds_after_end_are_not_contained() {
+        let slots: TimeSlots = "05:00-06:00".into();
+        assert!(slots.contains("05:59:59"));
+        assert!(slots.contains("06:00:00"));
+        assert!(!slots.contains("06:00:14"));
+        assert!(!slots.contains("06:00:59"));
     }
 
     #[test]
@@ -294,7 +329,7 @@ mod middleware_tests {
     /// clock.
     #[tokio::test]
     async fn middleware_returns_503_when_request_falls_inside_a_slot() {
-        let layer = TimeLimiterLayer::new(TimeSlots::from("00:00-23:59"));
+        let layer = TimeLimiterLayer::new(TimeSlots::from("00:00-24:00"));
         let svc = ServiceBuilder::new()
             .layer(layer)
             .service(tower::service_fn(|_req: Request<Body>| async {
@@ -318,7 +353,7 @@ mod middleware_tests {
 
     #[tokio::test]
     async fn middleware_503_message_lists_the_time_slots() {
-        let layer = TimeLimiterLayer::new(TimeSlots::from("00:00-23:59"));
+        let layer = TimeLimiterLayer::new(TimeSlots::from("00:00-24:00"));
         let svc = ServiceBuilder::new()
             .layer(layer)
             .service(tower::service_fn(|_req: Request<Body>| async {
@@ -333,7 +368,7 @@ mod middleware_tests {
         let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
         assert_eq!(
             std::str::from_utf8(&body).unwrap(),
-            r#"{"code":503,"message":"Service unavailable during these times: 00:00 - 23:59"}"#
+            r#"{"code":503,"message":"Service unavailable during these times: 00:00 - 24:00"}"#
         );
     }
 

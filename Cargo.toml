@@ -1,6 +1,6 @@
 [package]
 name = "api-tools"
-version = "0.10.0"
+version = "0.10.1"
 authors = ["Fabien Bellanger <valentil@gmail.com>"]
 description = "An API tools library for Rust"
 edition = "2024"
@@ -56,8 +56,8 @@ chrono = { version = "0.4.45", features = [
 chrono-tz = "0.10.4"
 futures = "0.3.34"
 mime = "0.3.17"
-tokio = { version = "1.53.2", features = ["full"] }
-uuid = { version = "1.28.0", features = ["v4", "serde"] }
+tokio = { version = "1.54.1", features = ["full"] }
+uuid = { version = "1.29.0", features = ["v4", "serde"] }
 jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 
 [dev-dependencies]
