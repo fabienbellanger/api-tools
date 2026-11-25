@@ -76,9 +76,5 @@
 //! | ------------------- | ------------------------------------------------------------------------------------------------- |
 //! | `PrometheusHandler` | Handler that exposes Prometheus metrics endpoint, allowing metrics scraping by Prometheus servers |
 
-#[allow(unused_imports, reason = "tracing macros are only used by some feature combinations")]
-#[macro_use]
-extern crate tracing;
-
 pub mod server;
 pub mod value_objects;

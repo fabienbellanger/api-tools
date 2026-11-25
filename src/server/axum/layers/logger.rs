@@ -52,7 +52,7 @@ impl LoggerMessage {
     fn log(&self) {
         macro_rules! log_request {
             ($level:ident) => {
-                $level!(
+                tracing::$level!(
                     status_code = %self.status_code,
                     method = %self.method,
                     path = %self.path,

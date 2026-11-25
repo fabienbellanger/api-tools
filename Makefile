@@ -44,6 +44,8 @@ upgrade-force:
 lint:
 	$(CARGO) fmt
 	$(CARGO) clippy --all-features --all-targets -- -D warnings
+	$(CARGO) clippy --no-default-features --all-targets -- -D warnings
+	$(CARGO) clippy --no-default-features --features axum --all-targets -- -D warnings
 
 ## lint-audit: Run clippy, rustfmt and audit
 lint-audit: lint
