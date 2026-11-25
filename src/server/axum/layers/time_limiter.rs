@@ -4,7 +4,6 @@ use crate::server::axum::{layers::body_from_parts, response::ApiError};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::response::Response;
-use chrono::Local;
 use futures::future::BoxFuture;
 use std::fmt::Display;
 use std::task::{Context, Poll};
@@ -184,7 +183,7 @@ where
     }
 
     fn call(&mut self, request: Request<Body>) -> Self::Future {
-        let now = Local::now().format("%H:%M:%S").to_string();
+        let now = jiff::ZonedDateTime::now().strftime("%H:%M:%S").to_string();
         let unavailable = self
             .time_slots
             .contains(&now)

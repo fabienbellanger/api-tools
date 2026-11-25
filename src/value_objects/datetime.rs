@@ -1,6 +1,6 @@
 //! Datetime represents a date and time value in the UTC timezone.
 
-use chrono::{DateTime, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use serde::Deserialize;
 use std::fmt::{Display, Formatter};
 use std::ops::Add;
@@ -17,19 +17,21 @@ pub enum UtcDateTimeError {
 /// Date time with UTC timezone
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Deserialize)]
 pub struct UtcDateTime {
-    value: DateTime<Utc>,
+    value: Timestamp,
 }
 
 impl UtcDateTime {
     /// Create a new date time for now
     #[must_use]
     pub fn now() -> Self {
-        Self { value: Utc::now() }
+        Self {
+            value: Timestamp::now(),
+        }
     }
 
     /// Create a new date time
     #[must_use]
-    pub const fn new(value: DateTime<Utc>) -> Self {
+    pub const fn new(value: Timestamp) -> Self {
         Self { value }
     }
 
@@ -49,44 +51,48 @@ impl UtcDateTime {
     ///
     /// Returns [`UtcDateTimeError::InvalidDateTime`] if `value` is not a valid RFC3339 date time.
     pub fn from_rfc3339(value: &str) -> Result<Self, UtcDateTimeError> {
-        let dt = DateTime::parse_from_rfc3339(value)
+        let value = value
+            .parse::<Timestamp>()
             .map_err(|e| UtcDateTimeError::InvalidDateTime(format!("{e}: {value}")))?;
 
-        Ok(Self {
-            value: dt.with_timezone(&Utc),
-        })
+        Ok(Self { value })
     }
 
     /// Get timestamp value
     #[must_use]
-    pub const fn timestamp(&self) -> i64 {
-        self.value.timestamp()
+    pub fn timestamp(&self) -> i64 {
+        self.value.as_second()
     }
 
     /// Get date time value
     #[must_use]
-    pub const fn value(&self) -> DateTime<Utc> {
+    pub const fn value(&self) -> Timestamp {
         self.value
     }
 
-    /// Create a new date time from a timestamp
+    /// Add a signed duration (negative to go back in time)
+    ///
+    /// # Panics
+    ///
+    /// Panics if the result is out of the range supported by [`Timestamp`].
     #[must_use]
-    pub fn add(&self, rhs: TimeDelta) -> Self {
+    pub fn add(&self, rhs: SignedDuration) -> Self {
         Self {
             value: self.value.add(rhs),
         }
     }
 }
 
-impl From<DateTime<Utc>> for UtcDateTime {
-    fn from(value: DateTime<Utc>) -> Self {
+impl From<Timestamp> for UtcDateTime {
+    fn from(value: Timestamp) -> Self {
         Self { value }
     }
 }
 
 impl Display for UtcDateTime {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        // RFC 3339 with `Z`; a precision of 0 truncates the sub-seconds
+        write!(f, "{:.0}", self.value)
     }
 }
 
@@ -96,9 +102,7 @@ mod test {
 
     #[test]
     fn test_utc_date_time_display() {
-        let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let dt: Timestamp = "2024-08-28T12:00:00Z".parse().unwrap();
         let datetime = UtcDateTime::from(dt);
 
         assert_eq!(datetime.to_string(), "2024-08-28T12:00:00Z");
@@ -116,9 +120,7 @@ mod test {
 
     #[test]
     fn test_value() {
-        let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let dt: Timestamp = "2024-08-28T12:00:00Z".parse().unwrap();
         let datetime = UtcDateTime::from(dt);
 
         assert_eq!(datetime.value(), dt);
@@ -126,39 +128,33 @@ mod test {
 
     #[test]
     fn test_timestamp() {
-        let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let dt: Timestamp = "2024-08-28T12:00:00Z".parse().unwrap();
         let datetime = UtcDateTime::from(dt);
 
         assert_eq!(datetime.timestamp(), 1_724_846_400);
     }
 
     #[test]
-    fn new_wraps_existing_chrono_datetime() {
-        let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+    fn new_wraps_existing_timestamp() {
+        let dt: Timestamp = "2024-08-28T12:00:00Z".parse().unwrap();
         let datetime = UtcDateTime::new(dt);
         assert_eq!(datetime.value(), dt);
     }
 
     #[test]
     fn now_returns_a_value_between_before_and_after_calls() {
-        let before = Utc::now();
+        let before = Timestamp::now();
         let dt = UtcDateTime::now();
-        let after = Utc::now();
+        let after = Timestamp::now();
         assert!(dt.value() >= before);
         assert!(dt.value() <= after);
     }
 
     #[test]
     fn test_add() {
-        let dt = DateTime::parse_from_rfc3339("2024-08-28T12:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let dt: Timestamp = "2024-08-28T12:00:00Z".parse().unwrap();
         let datetime = UtcDateTime::from(dt);
-        let new_datetime = datetime.add(TimeDelta::seconds(3600));
+        let new_datetime = datetime.add(SignedDuration::from_hours(1));
         assert_eq!(new_datetime.to_string(), "2024-08-28T13:00:00Z".to_owned());
     }
 
@@ -186,10 +182,18 @@ mod test {
     #[test]
     fn add_negative_delta_goes_back_in_time() {
         let datetime = UtcDateTime::from_rfc3339("2024-08-28T00:30:00Z").unwrap();
-        let earlier = datetime.add(TimeDelta::hours(-1));
+        let earlier = datetime.add(SignedDuration::from_hours(-1));
 
         assert_eq!(earlier.to_string(), "2024-08-27T23:30:00Z");
         assert!(earlier < datetime);
+    }
+
+    #[test]
+    fn deserialize_from_rfc3339_string() {
+        let datetime: UtcDateTime = serde_json::from_str(r#"{"value": "2024-08-28T14:00:00+02:00"}"#).unwrap();
+        assert_eq!(datetime.to_string(), "2024-08-28T12:00:00Z");
+
+        assert!(serde_json::from_str::<UtcDateTime>(r#"{"value": "not-a-date"}"#).is_err());
     }
 
     #[test]

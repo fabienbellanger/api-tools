@@ -21,8 +21,8 @@
 //!
 //! | Name          | Description                                                                                |
 //! | ------------- | ------------------------------------------------------------------------------------------ |
-//! | `UtcDateTime` | A wrapper around `chrono::DateTime` to handle date and time values in UTC                  |
-//! | `Timezone`    | A wrapper around `chrono_tz::Tz` to handle time zones                                      |
+//! | `UtcDateTime` | A wrapper around `jiff::Timestamp` to handle date and time values in UTC                   |
+//! | `Timezone`    | A wrapper around `jiff::tz::TimeZone` to handle IANA time zones                            |
 //! | `Pagination`  | A struct to handle pagination parameters, including page number, page size and total count |
 //! | `QuerySort`   | A struct to handle sorting query parameters, including field and direction                 |
 //!

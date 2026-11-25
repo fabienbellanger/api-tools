@@ -1,8 +1,7 @@
 //! Timezone value object representation
 
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use std::fmt::Display;
-use std::str::FromStr;
 use thiserror::Error;
 
 /// Timezone possible errors
@@ -16,14 +15,20 @@ pub enum TimezoneError {
 /// IANA timezone (e.g. `Europe/Paris`)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Timezone {
-    value: Tz,
+    value: TimeZone,
 }
 
 impl Timezone {
     /// Create a new timezone
     #[must_use]
-    pub const fn new(tz: Tz) -> Self {
+    pub const fn new(tz: TimeZone) -> Self {
         Self { value: tz }
+    }
+
+    /// Get the timezone value
+    #[must_use]
+    pub const fn value(&self) -> &TimeZone {
+        &self.value
     }
 }
 
@@ -31,7 +36,8 @@ impl TryFrom<&str> for Timezone {
     type Error = TimezoneError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let tz = Tz::from_str(value).map_err(|e| TimezoneError::Invalid(e.to_string()))?;
+        // Look-up in the system Time Zone Database (case-insensitive, canonicalized name)
+        let tz = TimeZone::get(value).map_err(|e| TimezoneError::Invalid(e.to_string()))?;
 
         Ok(Self::new(tz))
     }
@@ -39,25 +45,32 @@ impl TryFrom<&str> for Timezone {
 
 impl Display for Timezone {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value)
+        match self.value.iana_name() {
+            Some(name) => f.write_str(name),
+            // Time zone without IANA name (e.g. a fixed offset)
+            None => match self.value.to_fixed_offset() {
+                Ok(offset) => write!(f, "{offset}"),
+                Err(_) => f.write_str("Etc/Unknown"),
+            },
+        }
     }
 }
 
 impl Default for Timezone {
     fn default() -> Self {
-        Self::new(Tz::Europe__Paris)
+        // Embedded at compile time: does not depend on the system Time Zone Database
+        Self::new(jiff::tz::get!("Europe/Paris"))
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use chrono_tz::Tz::Europe__Paris;
 
     #[test]
     fn test_try_from_str() {
         let tz = Timezone::try_from("Europe/Paris").unwrap();
-        assert_eq!(tz.value, Europe__Paris);
+        assert_eq!(tz.value.iana_name(), Some("Europe/Paris"));
 
         let tz = Timezone::try_from("Invalid");
         assert!(tz.is_err());
@@ -65,14 +78,14 @@ mod test {
 
     #[test]
     fn test_display() {
-        let tz = Timezone::new(Europe__Paris);
+        let tz = Timezone::new(TimeZone::get("Europe/Paris").unwrap());
         assert_eq!(tz.to_string(), "Europe/Paris");
     }
 
     #[test]
     fn test_default() {
         let tz = Timezone::default();
-        assert_eq!(tz.value, Europe__Paris);
+        assert_eq!(tz.to_string(), "Europe/Paris");
     }
 
     #[test]
@@ -81,7 +94,19 @@ mod test {
         assert_eq!(tz.to_string(), "America/New_York");
 
         let tz = Timezone::try_from("UTC").unwrap();
-        assert_eq!(tz, Timezone::new(Tz::UTC));
+        assert_eq!(tz.to_string(), "UTC");
+    }
+
+    #[test]
+    fn try_from_str_is_case_insensitive_and_canonicalized() {
+        let tz = Timezone::try_from("europe/PARIS").unwrap();
+        assert_eq!(tz.to_string(), "Europe/Paris");
+    }
+
+    #[test]
+    fn display_fixed_offset_without_iana_name() {
+        let tz = Timezone::new(TimeZone::fixed(jiff::tz::offset(2)));
+        assert_eq!(tz.to_string(), "+02");
     }
 
     #[test]

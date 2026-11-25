@@ -163,7 +163,8 @@ impl Jwt {
     /// Returns [`JwtError::InvalidAlgorithm`] for an algorithm this crate does not support yet.
     pub fn set_encoding_key(&mut self, secret: &str) -> Result<(), JwtError> {
         let key = match self.algorithm {
-            Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(secret.as_bytes()),
+            Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(secret.as_bytes())
+                .map_err(|err| JwtError::EncodingKeyError(err.to_string()))?,
             Algorithm::ES256 | Algorithm::ES384 => EncodingKey::from_ec_pem(secret.as_bytes())
                 .map_err(|err| JwtError::EncodingKeyError(err.to_string()))?,
             Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => EncodingKey::from_rsa_pem(secret.as_bytes())
@@ -189,7 +190,8 @@ impl Jwt {
     /// Returns [`JwtError::InvalidAlgorithm`] for an algorithm this crate does not support yet.
     pub fn set_decoding_key(&mut self, secret: &str) -> Result<(), JwtError> {
         let key = match self.algorithm {
-            Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => DecodingKey::from_secret(secret.as_bytes()),
+            Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => DecodingKey::from_secret(secret.as_bytes())
+                .map_err(|err| JwtError::DecodingKeyError(err.to_string()))?,
             Algorithm::ES256 | Algorithm::ES384 => DecodingKey::from_ec_pem(secret.as_bytes())
                 .map_err(|err| JwtError::DecodingKeyError(err.to_string()))?,
             Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => DecodingKey::from_rsa_pem(secret.as_bytes())
@@ -358,7 +360,7 @@ mod tests {
     }
 
     fn future_exp(seconds: i64) -> i64 {
-        chrono::Utc::now().timestamp() + seconds
+        jiff::Timestamp::now().as_second() + seconds
     }
 
     #[test]
