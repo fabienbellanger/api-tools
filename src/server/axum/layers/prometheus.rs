@@ -43,7 +43,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
+use sysinfo::{CpuRefreshKind, Disk, Disks, MemoryRefreshKind, RefreshKind, System};
 use tokio::task::JoinHandle;
 use tower::{Layer, Service};
 
@@ -205,9 +205,15 @@ pub fn spawn_system_metrics_collector(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let refresh_kind = RefreshKind::nothing()
-            .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+            .with_cpu(CpuRefreshKind::nothing().with_usage())
             .with_memory(MemoryRefreshKind::everything());
-        let mut sys = System::new_with_specifics(refresh_kind);
+        let mut sys = match System::new_with_specifics(refresh_kind) {
+            Ok(sys) => sys,
+            Err(err) => {
+                tracing::error!(error = %err, "cannot initialize sysinfo, system metrics collector stopped");
+                return;
+            }
+        };
 
         let mut ticker = tokio::time::interval(interval);
         loop {
@@ -222,9 +228,15 @@ pub fn spawn_system_metrics_collector(
             let total_swap = sys.total_swap();
             let used_swap = sys.used_swap();
 
-            let disks = Disks::new_with_refreshed_list();
             let mut total_disks_space: u64 = 0;
             let mut used_disks_space: u64 = 0;
+            let disks: Vec<Disk> = Disks::new_with_refreshed_list().map_or_else(
+                |err| {
+                    tracing::warn!(error = %err, "cannot list disks");
+                    Vec::new()
+                },
+                Into::into,
+            );
             for disk in &disks {
                 if disk_mount_points.contains(&disk.mount_point().to_path_buf()) {
                     total_disks_space += disk.total_space();

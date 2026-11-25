@@ -18,7 +18,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.10.1` (2026-10-26) [CURRENT]
+## `0.11.0` (2026-11-25) [CURRENT]
+
+### Changed
+
+- [Breaking] Replace `chrono` and `chrono-tz` with `jiff` (`1.0.3`). Both crates are
+  unmaintained (`RUSTSEC-2026-0543`, `RUSTSEC-2026-0555`).
+  - `UtcDateTime` now wraps a `jiff::Timestamp`: `UtcDateTime::new`, `UtcDateTime::value`
+    and `From` take/return a `jiff::Timestamp` instead of a `chrono::DateTime<Utc>`.
+  - `UtcDateTime::add` takes a `jiff::SignedDuration` instead of a `chrono::TimeDelta`.
+  - `UtcDateTime::timestamp` is no longer a `const fn`.
+  - `Timezone` now wraps a `jiff::tz::TimeZone`: `Timezone::new` takes a
+    `jiff::tz::TimeZone` instead of a `chrono_tz::Tz`. A new `Timezone::value` getter
+    returns it.
+  - `Timezone::try_from(&str)` now looks the zone up in the system Time Zone Database
+    (`/usr/share/zoneinfo`) instead of the copy embedded by `chrono-tz`. The look-up is
+    case-insensitive and the name is canonicalized (`europe/PARIS` → `Europe/Paris`).
+    On a system without a Time Zone Database (e.g. `scratch` or distroless images),
+    enable the `tzdb-bundle-always` feature of `jiff` in the final binary.
+  - `Timezone::default()` (`Europe/Paris`) is embedded at compile time (`jiff` `static`
+    feature) and does not depend on the system Time Zone Database.
+  - `Timezone`'s `Display` falls back to the offset (e.g. `+02`) for a time zone without
+    IANA name.
+- [Breaking] Update MSRV to Rust 1.95.
+- Update `jsonwebtoken` (`11.1.0` → `12.0.0`). `EncodingKey::from_secret` and
+  `DecodingKey::from_secret` now reject an empty secret: `Jwt::set_encoding_key` and
+  `Jwt::set_decoding_key` return `JwtError::EncodingKeyError` /
+  `JwtError::DecodingKeyError` for an empty HMAC secret (`HS256`, `HS384`, `HS512`).
+- Update `sysinfo` (`0.38.4` → `0.40.4`). `spawn_system_metrics_collector` now handles
+  `sysinfo` initialization errors: if the system cannot be queried, an error is logged
+  and the collector task stops; if the disk list cannot be read, a warning is logged
+  and the disk gauges are set to `0` for that tick.
+- Update dependencies: `bytes` (`1.12.1` → `1.12.2`), `hyper` (`1.12.0` → `1.13.0`),
+  `mime` (`0.3.17` → `0.3.18`), `uuid` (`1.29.0` → `1.29.3`).
+
+### Removed
+
+- Remove the `homepage` field from `Cargo.toml` (same URL as `repository`).
+
+## `0.10.1` (2026-10-26)
 
 ### Changed
 
