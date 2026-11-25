@@ -18,7 +18,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 -->
 
-## `0.11.0` (2026-11-25) [CURRENT]
+## `0.11.1` (2026-11-25) [CURRENT]
+
+### Fixed
+
+- Server dependencies are now optional and only enabled by the `axum` feature (`axum`,
+  `hyper`, `tower`, `tower-http`, `tokio`, `jsonwebtoken`, `tracing`, `opentelemetry`,
+  `tracing-opentelemetry`, `http-auth-basic`, `futures`, `bytes`, `bytesize`, `mime`,
+  `uuid`, `serde_json`, `serde_urlencoded`). Without any feature, the crate now only
+  depends on `thiserror`, `serde` and `jiff`. It used to download and build the whole
+  server stack, and `cargo publish` warned about unused dependencies.
+- The `prometheus` feature now enables `axum`: the Prometheus layer and handler live
+  under `server::axum`. Enabling `prometheus` alone used to build nothing.
+
+### Changed
+
+- `make lint` also runs clippy without any feature and with the `axum` feature only.
+
+## `0.11.0` (2026-11-25)
 
 ### Changed
 

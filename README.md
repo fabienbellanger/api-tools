@@ -36,11 +36,11 @@ cargo add api-tools -F full
 
 ## Features list
 
-| Name         | Description                       | Default |
-| ------------ | --------------------------------- | :-----: |
-| `axum`       | Enable Axum feature               |   ❌    |
-| `prometheus` | Enable Prometheus metrics feature |   ❌    |
-| `full`       | Enable all features               |   ❌    |
+| Name         | Description                                        | Default |
+| ------------ | -------------------------------------------------- | :-----: |
+| `axum`       | Enable Axum feature                                |   ❌    |
+| `prometheus` | Enable Prometheus metrics feature (enables `axum`) |   ❌    |
+| `full`       | Enable all features                                |   ❌    |
 
 ## Components
 

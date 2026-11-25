@@ -36,14 +36,17 @@ make doc                # cargo doc --open --no-deps --all-features
 
 ## Feature Flags
 
-| Feature      | Enables                                             |
-| ------------ | --------------------------------------------------- |
-| `axum`       | Everything under `server::axum::*`                  |
-| `prometheus` | `metrics`, `metrics-exporter-prometheus`, `sysinfo` |
-| `full`       | `axum` + `prometheus`                               |
+| Feature      | Enables                                                      |
+| ------------ | ------------------------------------------------------------ |
+| `axum`       | Everything under `server::axum::*`                           |
+| `prometheus` | `axum` + `metrics`, `metrics-exporter-prometheus`, `sysinfo` |
+| `full`       | `axum` + `prometheus`                                        |
 
-`default = []` — the bare crate compiles with only the value objects. New optional integrations
-should be gated behind a feature, not added to the default set.
+`default = []` — the bare crate compiles with only the value objects and depends only on
+`thiserror`, `serde` and `jiff`. Every dependency used by `server::axum::*` must be `optional = true`
+and listed in the `axum` feature (`dep:...`); a test-only use in `value_objects` goes in
+`[dev-dependencies]`. `make lint` runs clippy without features and with `axum` alone to catch a
+dependency that is used but not gated (compile error) or gated but unused (`cargo publish` warning).
 
 ## Architecture Notes
 
